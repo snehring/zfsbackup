@@ -6,27 +6,25 @@ import os
 import sys
 from datetime import datetime
 
-if sys.version_info[0] != 3 or sys.version_info[1] < 6:
-    print("This program requires at least Python 3.6")
-    sys.exit("Wrong Python")
-if __name__ == "__main__":
-    main()
-
 
 def main():
     # TODO: argparse setup
     args = argparse.ArgumentParser(
         description='Program to automatically create and send snapshots of zfs datasets')
-    args.add_argument('--config', inargs='?',
+    args.add_argument('--config',
                       help='path to configuration for %(prog)s',
-                      type=String)
-    args.add_argument('dataset', type=String,
+                      type=str)
+    args.add_argument('dataset', type=str,
                       help='name of dataset to replicate')
-    args.add_argument('destination', type=String,
+    args.add_argument('destination', type=str,
                       help='where to send the dataset')
     # default lockfile location"
     lf_path = "/var/lock/zfsbackup.lock"
     # TODO: config file parsing. Decide on format.
+    # probably use shlex.quote() in the config file parsing
+    # to make sure dataset names and the like are escaped properly
+    # also enforce permissions on the config file (refuse to run if not
+    # owned by root or writable by non-root users).
     lf_fd = create_lockfile(lf_path)
     # TODO: for each dataset
     #           check for left over timestamp snaps exit if found, loudly
@@ -44,6 +42,9 @@ def main():
     #               rename timestamp snap to backup-last
     # TODO: determine if we want a 'retry queue' of failed datasets
     # if so, make sure those are added into the failure queue above
+    # TODO: clean up and exit
+    clean_lockfile(lf_fd)
+    sys.exit()
 
 
 def create_snapshot(dataset, name):
@@ -108,7 +109,7 @@ def rename_dataset(dataset, newname):
         # command returned non-zero error code
         logging.error("Error: Unable to rename dataset "+dataset+"to "+newname)
         logging.error("Got: "+__cleanup_stdout(e.stderr))
-        raise ZFSBackupError("Failed to rename dataset: "+dataset" newname: "
+        raise ZFSBackupError("Failed to rename dataset: "+dataset+" newname: "
                              + newname)
     except TimeoutExpired:
         # timed out
@@ -119,7 +120,7 @@ def rename_dataset(dataset, newname):
 def rename_snapshot(snapshot, newname):
     """Renames a snapshot to newname"""
     # check that it's a snapshot
-    if '@' (not in snapshot) or (not in newname):
+    if ('@' not in snapshot) or ('@' not in newname):
         logging.error("Error: tried to rename a non-snapshot or rename a"
                       + "snapshot to a non-snapshot."
                       + "Snapshot was: "+snapshot+"and newname was: "
@@ -131,10 +132,74 @@ def rename_snapshot(snapshot, newname):
     rename_dataset(snapshot, newname)
 
 
-def send_snapshot(snapshot, destination, transport=None):
+def send_snapshot(snapshot, destination, transport='local'):
     """Do a full send of snapshot specified by snapshot to destination
-   using transport. If transport is None, it's assumed to be local"""
-    # TODO: send snapshot
+    using transport. If transport is None, it's assumed to be local.
+    currently only local and ssh are supported as transports. ssh
+    transport has form 'ssh:user@hostname<:port>'"""
+    if '@' not in snapshot:
+        logging.error("Error: tried to send non snapshot "+snapshot)
+        raise ZFSBackupError("Tried to send non-snapshot "+snapshot)
+    if transport.lower() == 'local':
+        zfs_send = subprocess.Popen(['zfs', 'send', '-ec', snapshot],
+                                    stdout=subprocess.PIPE)
+        zfs_recv = subprocess.Popen(['zfs', 'recv', '-F', destination],
+                                    stdin=zfs_send.stdout)
+        try:
+            zfs_recv.communicate()
+            zfs_recv.wait()
+            zfs_send.wait()
+        except Exception as e:
+            zfs_send.kill()
+            zfs_recv.kill()
+            logging.error("Error: exception while sending: "+e)
+            raise ZFSBackupError("Caught an exception while sending "+e)
+        if (zfs_send.returncode != 0) or (zfs_recv != 0):
+            # we failed somewhere
+            logging.error("Error: send of "+snapshot+" to "
+                          + destination+" failed.")
+            raise ZFSBackupError("Send of "+snapshot+" to "
+                                 + destination+" failed.")
+        logging.info("Finished send of "+snapshot+" via <"
+                     + transport.lower()+"> to "+destination)
+    elif transport.lower().split(':')[0] == 'ssh':
+        port = '22'
+        if len(transport.split(':')) > 2:
+            # assume that the 3rd element is a port number
+            port = transport.split(':')[2]
+        zfs_send = subprocess.Popen(['zfs', 'send', '-ec', snapshot],
+                                    stdout=subprocess.PIPE)
+        # TODO: have a configurable for ssh-key instead of just assuming
+        username, hostname = transport.split(':')[1].split('@')
+        ssh_command = "zfs recv -F "+destination
+        ssh_recv = subprocess.Popen(['ssh', '-o',
+                                     'PreferredAuthentications=publickey',
+                                     '-o', 'PubkeyAuthentication=yes', '-p',
+                                     port, '-l', username, hostname,
+                                     ssh_command], stdin=zfs_send.stdout)
+        try:
+            ssh_recv.communicate()
+            ssh_recv.wait()
+            zfs_send.wait()
+        except Exception as e:
+            zfs_send.kill()
+            ssh_recv.kill()
+            logging.error("Error: exception caught while sending: "+e)
+            raise ZFSBackupError("Caught an exception while sending "+e)
+        if (zfs_send.returncode != 0) or (ssh_recv != 0):
+            # we failed somewhere
+            logging.error("Error: send of "+snapshot+" to "
+                          + destination+" failed.")
+            raise ZFSBackupError("Send of "+snapshot+" to "
+                                 + destination+" failed.")
+        logging.info("Finished send of "+snapshot+"via <"
+                     + transport.lower()+"> to "+destination)
+    else:
+        # some transport we don't support
+        # shouldn't happen with config parsing
+        # handle it anyway
+        logging.error("Error: invalid transport specified: "+transport)
+        raise ZFSBackupError("Invalid transport: "+transport)
 
 
 def send_incremental(snapshot1, snapshot2, destination, transport=None):
@@ -168,14 +233,14 @@ def get_snapshots(dataset):
         return snaps
     except CalledProcessError as e:
         # command returned non-zero error code
-        logging.error("Unable to get list of snapshots for " + dataset + ".
-                      zfs list returned non-zero return code.")
+        logging.error("Unable to get list of snapshots for " + dataset
+                      + ". zfs list returned non-zero return code.")
         logging.error("Got: "+__cleanup_stdout(e.stderr))
         raise ZFSBackupError("Unable to get list of snapshots for "+dataset)
     except TimeoutExpired:
         # command timed out
-        logging.error("Unable to get list of snapshots for " +
-                      dataset+". Timeout reached.")
+        logging.error("Unable to get list of snapshots for "
+                      + dataset+". Timeout reached.")
         raise ZFSBackupError("Unable to get list of snapshots for "+dataset)
 
 
@@ -206,9 +271,9 @@ def create_lockfile(path):
         logging.critical("Error: Unable to create lock file.")
         logging.critical(e)
         sys.exit("Unable to open lock file")
-    except as e:
+    except Exception as e:
         # some other error has occured, report it and exit.
-        logging.critical("Error: unable to get open lock file. Error was"+e+)
+        logging.critical("Error: unable to get open lock file. Error was"+e)
         sys.exit("Unable to open lock file.")
 
 
@@ -233,3 +298,10 @@ class ZFSBackupError(Exception):
 
     def __init__(self, message):
         self.message = message
+
+
+if sys.version_info[0] != 3 or sys.version_info[1] < 6:
+    print("This program requires at least Python 3.6")
+    sys.exit("Wrong Python")
+if __name__ == "__main__":
+    main()
