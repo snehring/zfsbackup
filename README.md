@@ -3,6 +3,10 @@ This is a quick and dirty python3 program to do one way sends of zfs datasets fo
 It makes a bunch of assumptions that you probably won't like, but I wrote it for my own internal use.
 It is still very much a work in progress and probably won't evolve to the point where it can be used
 as a product outside of my environment.
+## Requirements
+- Python (>=3.6)
+- ZFS (ZoL >=0.7.0)
+- PyYAML
 ## Planned Features
 - Support for local and remote sends
 - Incremental sends (Wow!)
