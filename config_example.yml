@@ -2,6 +2,7 @@
 # just log file for now
 # maybe an ssh key could go in here
 log_file: "./zfsbackup.log"
+lock_file: "./zfsbackup.lock"
 # dataset config
 datasets:
   -
