@@ -18,4 +18,6 @@ as a product outside of my environment.
 I wanted to write my own simple zfs backup program. There are better more complex offerings out there if you
 have your own need.
 ## Future
-I know there are plans to update pyzfs so I'll probably use that in the future.
+I know there are plans to update pyzfs so I'll probably use that in the future. Prsently this is for 1:1 backups
+ie each dataset has one and only one backup destination. The abilty to do 1:n backups doesn't fit the exact case 
+I'm writing this for, but should be very doable.

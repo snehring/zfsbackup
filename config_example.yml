@@ -1,0 +1,12 @@
+# global config
+# maybe an ssh key could go in here
+#
+# dataset config
+  dataset:
+    dataset_name: "store/testing/test_set"
+    transport: "local"
+    destination: "store/backup/test_set"
+  dataset:
+    dataset_name: "store/testing/test_set2"
+    transport: "ssh:root@somehostname.whatever"
+    destination: "store/backup/test_set2"
