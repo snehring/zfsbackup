@@ -9,8 +9,9 @@ from datetime import datetime
 
 def main():
     # TODO: argparse setup
-    args = argparse.ArgumentParser(
-        description='Program to automatically create and send snapshots of zfs datasets')
+    ap_desc = """Program to automatically create and send snapshots of zfs
+                 datasets."""
+    args = argparse.ArgumentParser(description=ap_desc)
     args.add_argument('--config',
                       help='path to configuration for %(prog)s',
                       type=str)
@@ -29,6 +30,8 @@ def main():
     # TODO: for each dataset
     #           check for left over timestamp snaps exit if found, loudly
     #           check has_backuplast()
+    #           # TODO: if doing n destinations, check for mulitple dests
+    #           # if so process each destination before snapshot rename
     #           yes?
     #               create timestamp snap for now
     #               do incremental
@@ -132,19 +135,34 @@ def rename_snapshot(snapshot, newname):
     rename_dataset(snapshot, newname)
 
 
-def send_snapshot(snapshot, destination, transport='local'):
-    """Do a full send of snapshot specified by snapshot to destination
-    using transport. If transport is None, it's assumed to be local.
+def send_snapshot(snapshot, destination, transport='local',
+                  incremental_source=None):
+    """Send a snapshot to a destination using transport.
+    snapshot is the full zfs path of the snapshot
+    destination is the full zfs path of the destination to be recv'd into
+    If incremental send, provide a source.
+    If transport is not provided, it's assumed to be local.
     currently only local and ssh are supported as transports. ssh
     transport has form 'ssh:user@hostname<:port>'"""
     if '@' not in snapshot:
         logging.error("Error: tried to send non snapshot "+snapshot)
         raise ZFSBackupError("Tried to send non-snapshot "+snapshot)
+    if incremental_source:
+        if '@' not in incremental_source:
+            logging.error("Error: incremental_source is not a snapshot. snap: "
+                          + snapshot+"dest: "+destination+" inc_source: "
+                          + incremental_source)
+            raise ZFSBackupError("incremental_source not a snapshot. snap: "
+                                 + snapshot+" dest: "+destination
+                                 + " inc_source: "+incremental_source)
+        zsend_command = ['zfs', 'send', '-ec', '-i', incremental_source,
+                         snapshot]
+    else:
+        zsend_command = ['zfs', 'send', '-ec', snapshot]
+    zrecv_command = ['zfs', 'recv', '-F', destination]
     if transport.lower() == 'local':
-        zfs_send = subprocess.Popen(['zfs', 'send', '-ec', snapshot],
-                                    stdout=subprocess.PIPE)
-        zfs_recv = subprocess.Popen(['zfs', 'recv', '-F', destination],
-                                    stdin=zfs_send.stdout)
+        zfs_send = subprocess.Popen(zsend_command, stdout=subprocess.PIPE)
+        zfs_recv = subprocess.Popen(zrecv_command, stdin=zfs_send.stdout)
         try:
             zfs_recv.communicate()
             zfs_recv.wait()
@@ -167,16 +185,14 @@ def send_snapshot(snapshot, destination, transport='local'):
         if len(transport.split(':')) > 2:
             # assume that the 3rd element is a port number
             port = transport.split(':')[2]
-        zfs_send = subprocess.Popen(['zfs', 'send', '-ec', snapshot],
-                                    stdout=subprocess.PIPE)
+        zfs_send = subprocess.Popen(zsend_command, stdout=subprocess.PIPE)
         # TODO: have a configurable for ssh-key instead of just assuming
         username, hostname = transport.split(':')[1].split('@')
-        ssh_command = "zfs recv -F "+destination
-        ssh_recv = subprocess.Popen(['ssh', '-o',
-                                     'PreferredAuthentications=publickey',
-                                     '-o', 'PubkeyAuthentication=yes', '-p',
-                                     port, '-l', username, hostname,
-                                     ssh_command], stdin=zfs_send.stdout)
+        ssh_remote_command = "zfs recv -F "+destination
+        ssh_command = ['ssh', '-o', 'PreferredAuthentications=publickey',
+                       '-o', 'PubkeyAuthentication=yes', '-p', port, '-l',
+                       username, hostname, ssh_remote_command]
+        ssh_recv = subprocess.Popen(ssh_command, stdin=zfs_send.stdout)
         try:
             ssh_recv.communicate()
             ssh_recv.wait()
@@ -202,10 +218,21 @@ def send_snapshot(snapshot, destination, transport='local'):
         raise ZFSBackupError("Invalid transport: "+transport)
 
 
-def send_incremental(snapshot1, snapshot2, destination, transport=None):
+def send_full(snapshot, destination, transport='local'):
+    """Do a full send of snapshot specified by snapshot to destination
+    using transport. If transport is not provided, it's assumed to be local.
+    currently only local and ssh are supported as transports. ssh
+    transport has form 'ssh:user@hostname<:port>'"""
+    send_snapshot(snapshot, destination, transport=transport)
+
+
+def send_incremental(snapshot1, snapshot2, destination, transport='local'):
     """Same as send_snapshot(), but do an incremental between
-   snapshot1 and snapshot2"""
-    # TODO
+   snapshot1 and snapshot2, with snapshot1 being the incremental_source
+   (earlier) snapshot and snapshot2 being the incremental_target (later)
+   snapshot"""
+    send_snapshot(snapshot2, destination, transport=transport,
+                  incremental_source=snapshot1)
 
 
 def has_straglers(dataset):
