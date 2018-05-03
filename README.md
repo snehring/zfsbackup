@@ -2,7 +2,8 @@
 This is a quick and dirty python3 program to do one way sends of zfs datasets for backup purposes.
 It makes a bunch of assumptions that you probably won't like, but I wrote it for my own internal use.
 It is still very much a work in progress and probably won't evolve to the point where it can be used
-as a product outside of my environment.
+as a product outside of my environment. I have literally done no testing besides some very minimal
+unit testing. This will very likely murder everything you've ever loved. I'll work on tests.
 ## Requirements
 - Python (>=3.6)
 - ZFS (ZoL >=0.7.0)
@@ -18,6 +19,4 @@ as a product outside of my environment.
 I wanted to write my own simple zfs backup program. There are better more complex offerings out there if you
 have your own need.
 ## Future
-I know there are plans to update pyzfs so I'll probably use that in the future. Prsently this is for 1:1 backups
-ie each dataset has one and only one backup destination. The abilty to do 1:n backups doesn't fit the exact case 
-I'm writing this for, but should be very doable.
+I know there are plans to update pyzfs so I'll probably use that in the future.
