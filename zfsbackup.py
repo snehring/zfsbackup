@@ -20,17 +20,37 @@ def main():
                             help='name of dataset to replicate')
     arg_parser.add_argument('destination', type=str, nargs='?',
                             help='where to send the dataset')
-    arg_parser.add_argument('transport', type=str, nargs='?',
+    arg_parser.add_argument('transport', type=str, nargs='?', default='local',
                             help='how to send the dataset, local or ssh. '
-                            + 'If not provided, local assumed.')
+                            + 'If not provided, local assumed.'
+                            + 'ssh format: '
+                            + 'ssh:username@hostname<:port>')
     args = arg_parser.parse_args()
+    # hard coded if you don't provide one in the config file, sorry.
+    lf_path = "/var/lock/zfsbackup.lock"
+    # TODO: make this user customizable
+    incremental_name = "@zfsbackup-last"
     if args.dataset or args.destination:
         # single dataset run
         if not args.dataset and args.destination:
             logging.error("Please provide both a dataset and a destination")
             sys.exit("Invalid argument")
-
-        # TODO: single dataset run logic
+        name = args.dataset
+        dest = args.destination
+        transport = args.transport
+        if has_straglers(name):
+            logging.warn("Dataset: "+name+"has left over temporary "
+                         + "snapshots. IT WAS NOT BACKED UP! You need "
+                         + "to resolve this manually. Make sure everything "
+                         + "is consistent and remove the left over "
+                         + "zfsbackup-yyymmdd-hhmm snaps.")
+            sys.exit("Dataset not backed up!")
+        else:
+            try:
+                backup_dataset(name, dest, incremental_name, transport)
+            except ZFSBackupException as e:
+                logging.warn("Dataset backup of "+name+" to "+dest
+                             + "FAILED! YOU'LL WANT TO SEE TO THAT!")
     elif args.config:
         # config run
         if not os.path.exists(args.config):
@@ -42,9 +62,31 @@ def main():
             # if the path is invalid or not writable I bet this'll complain
             # and that's fine, I'd percolate up any exception anyway
             logging.basicConfig(filename=conf.get('log_file'))
+        if conf.get('lock_file'):
+            lf_path = conf.get('lock_file')
         # TODO future: user selectable logging levels
         logging.getLogger().setLevel(logging.INFO)
-        # do whatever based on assumed good file
+        # create lockfile
+        lf_fd = create_lockfile(lf_path)
+        for ds in conf.get('datasets'):
+            name = ds.get('name')
+            if has_straglers(name):
+                logging.warn("Dataset: "+name+"has left over temporary "
+                             + "snapshots. IT WAS NOT BACKED UP! You need "
+                             + "to resolve this manually. Make sure "
+                             + "everything is consistent and remove "
+                             + "the left over zfsbackup-yyyymmdd-hhmm snaps.")
+                continue
+            else:
+                for dst in ds.get('destinations'):
+                    try:
+                        backup_dataset(name, dst.get('dest'), incremental_name,
+                                       dst.get('transport'))
+                    except ZFSBackupException as e:
+                        logging.warn("Dataset backup of "+name+" to "
+                                     + dst.get('dest')+" via "
+                                     + dst.get('transport')+" FAILED!"
+                                     + "YOU'LL WANT TO SEE TO THAT!")
     elif not args.config:
         # config file not provided
         logging.error("Config file required if no other arguments given.")
@@ -54,28 +96,8 @@ def main():
         logging.error("Woops, I guess I broke argument parsing")
         sys.exit("Programmer error.")
 
-    # default lockfile location"
-    lf_path = "/var/lock/zfsbackup.lock"
-    lf_fd = create_lockfile(lf_path)
-    # TODO: for each dataset
-    #           check for left over timestamp snaps exit if found, loudly
-    #           check has_backuplast()
-    #           # TODO: if doing n destinations, check for mulitple dests
-    #           # if so process each destination before snapshot rename
-    #           yes?
-    #               create timestamp snap for now
-    #               do incremental
-    #               check destination for timestamp snap
-    #               remove old backup-last
-    #               rename timestamp snap to backup-last
-    #           no?
-    #               create timestamp snap for now
-    #               do send
-    #               check destination for timestamp snap
-    #               rename timestamp snap to backup-last
     # TODO: determine if we want a 'retry queue' of failed datasets
     # if so, make sure those are added into the failure queue above
-    # TODO: clean up and exit
     clean_lockfile(lf_fd)
     sys.exit()
 
@@ -107,6 +129,94 @@ def validate_config(conf_path):
     return conf
 
 
+def backup_dataset(dataset, destination, inc_snap, transport='local'):
+    """Backup a dataset to the specified destination using the specified
+       transport."""
+    try:
+        new_snap = create_timestamp_snap(dataset)
+        if has_backuplast(dataset, inc_snap):
+            # do incremental
+            send_incremental(dataset+inc_snap, dataset+new_snap,
+                             destination, transport=transport)
+            logging.info("Incremental send of "+dataset+new_snap+" to "
+                         + destination+" via "+transport+" finished.")
+            # delete old incremental marker
+            try:
+                delete_snapshot(dataset+inc_snap)
+                logging.info("Deleted old incremental snapshot")
+            except ZFSBackupError as e:
+                logging.error("Unable to delete "+dataset+inc_snap
+                              + " YOU NEED TO DELETE THAT AND THEN RENAME "
+                              + dataset+new_snap+" TO "+dataset+inc_snap)
+            raise e
+        else:
+            # do full send
+            send_full(dataset+new_snap, destination, transport=transport)
+            logging.info("Full send of "+dataset+new_snap+" to " + destination
+                         + " via "+transport+" finished.")
+        if verify_backup(new_snap, destination, transport):
+            # good backup
+            logging.info("Verification of "+destination+new_snap+" via "
+                         + transport+" finished.")
+        else:
+            # bad backup exit
+            logging.error("Verification of "+destination+new_Snap+" via"
+                          + transport+" FAILED!")
+            try:
+                delete_snapshot(dataset+new_snap)
+            except Exception as e:
+                logging.error("Unable to clean up snapshot "+dataset+new_snap
+                              + " after failed verification.")
+            finally:
+                raise ZFSBackupError("Verification of "+destination+new_snap
+                                     + " FAILED!")
+        # rename dataset+new_snap to dataset+inc_snap
+        try:
+            rename_snapshot(dataset+new_snap, dataset+inc_snap)
+        # done
+        except ZFSBackupError as e:
+            logging.error("UNABLE TO RENAME"+dataset+new_snap+" TO "
+                          + dataset+inc_snap+" YOU NEED TO DO THIS MANUALLY!")
+            raise e
+    except ZFSBackupError as e:
+        logging.error("Failed backup of "+dataset+" to "+destination
+                      + " via "+transport)
+        raise e
+
+
+def verify_backup(snapshot, destination, transport):
+    """Verify backup is at destination"""
+    try:
+        if transport == 'local':
+            zfs_command = ['zfs', 'list', '-H', '-t', 'snapshot',
+                           '-o', 'name', destination+snapshot]
+            zfs = subprocess.run(zfs_command, stderr=subprocess.PIPE,
+                                 check=True, timeout=10, encoding='utf-8')
+            return True
+        elif transport.lower().split(':')[0] == 'ssh':
+            port = '22'
+            if len(transport.split(':')) > 2:
+                # assume that the 3rd element is a port number
+                port = transport.split(':')[2]
+            # TODO: make the ssh communication it's own function probably
+            username, hostname = transport.split(':')[1].split('@')
+            zfs = "zfs list -H -t snapshot -o name "+destination+snapshot
+            ssh_command = ['ssh', '-o', 'PreferredAuthentications=publickey',
+                           '-o', 'PubkeyAuthentication=yes', '-p', port, '-l',
+                           username, hostname, zfs]
+            ssh = subprocess.run(ssh_command, stderr=subprocess.PIPE,
+                                 check=True, timeout=10, encoding='utf-8')
+            return True
+        else:
+            # crap we don't do
+            return False
+    except Exception as e:
+        logging.Error("Unable to verify snap: "+snapshot+" exists at: "
+                      + destination+" via "+transport)
+        raise ZFSBackupError("Failed to verify backup of "+snapshot+" to "
+                             + destination+" via "+transport)
+
+
 def create_snapshot(dataset, name):
     """Create a snapshot of the given dataset with the specified name"""
     try:
@@ -127,10 +237,12 @@ def create_snapshot(dataset, name):
 
 
 def create_timestamp_snap(dataset):
-    """Create a snapshot with the backup-YYYYMMDD-HHMM name format"""
+    """Create a snapshot with the zfsbackup-YYYYMMDD-HHMM name format.
+       returns name of created snapshot"""
     # call create_snapshot with correct name
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
-    create_snapshot(dataset, 'backup-'+timestamp)
+    create_snapshot(dataset, 'zfsbackup-'+timestamp)
+    return '@zfsbackup-'+timestamp
 
 
 def delete_snapshot(snapshot):
@@ -163,7 +275,7 @@ def rename_dataset(dataset, newname):
     """Renames a dataset to newname"""
     try:
         zfs = subprocess.run(['zfs', 'rename', dataset, newname],
-                             sterr=subprocess.PIPE, check=True, timeout=10,
+                             stderr=subprocess.PIPE, check=True, timeout=10,
                              encoding='utf-8')
     except CalledProcessError as e:
         # command returned non-zero error code
@@ -288,14 +400,15 @@ def send_incremental(snapshot1, snapshot2, destination, transport='local'):
    snapshot1 and snapshot2, with snapshot1 being the incremental_source
    (earlier) snapshot and snapshot2 being the incremental_target (later)
    snapshot"""
+   # TODO: should validate that snapshot1 is at destination, but eh
     send_snapshot(snapshot2, destination, transport=transport,
                   incremental_source=snapshot1)
 
 
 def has_straglers(dataset):
-    """Returns true if dataset has stragler backup-<datestamp> snapshots"""
+    """Returns true if dataset has stragler zfsbackup-<datestamp> snapshots"""
     snaps = get_snapshots(dataset)
-    regex = re.compile(".*@backup-\d{8}-\d{4}")
+    regex = re.compile(".*@zfsbackup-\d{8}-\d{4}")
     # this is likely not the best way to do this, but it shouldn't be too awful
     matches = list(filter(regex.match, snaps))
     if matches:
@@ -328,10 +441,10 @@ def get_snapshots(dataset):
         raise ZFSBackupError("Unable to get list of snapshots for "+dataset)
 
 
-def has_backuplast(dataset):
+def has_backuplast(dataset, inc_name):
     """return true if dataset has a backup-last snapshot"""
     snaps = get_snapshots(dataset)
-    if dataset+'@backup-last' in snaps:
+    if dataset+inc_name in snaps:
         return True
     else:
         return False
