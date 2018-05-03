@@ -1,12 +1,18 @@
 # global config
+# just log file for now
 # maybe an ssh key could go in here
-#
+log_file: "./zfsbackup.log"
 # dataset config
-  dataset:
+datasets:
+  -
     dataset_name: "store/testing/test_set"
-    transport: "local"
-    destination: "store/backup/test_set"
-  dataset:
+    destinations: 
+    -
+      dest: "store/backup/test_set"
+      transport: "local"
+  -
     dataset_name: "store/testing/test_set2"
-    transport: "ssh:root@somehostname.whatever"
-    destination: "store/backup/test_set2"
+    destinations:
+    -
+      dest: "store/backup/test_set2"
+      transport: "ssh:root@somehostname.whatever"
