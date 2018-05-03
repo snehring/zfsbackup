@@ -5,27 +5,49 @@ import re
 import os
 import sys
 from datetime import datetime
+import yaml
 
 
 def main():
     # TODO: argparse setup
     ap_desc = """Program to automatically create and send snapshots of zfs
                  datasets."""
-    args = argparse.ArgumentParser(description=ap_desc)
-    args.add_argument('--config',
-                      help='path to configuration for %(prog)s',
-                      type=str)
-    args.add_argument('dataset', type=str,
-                      help='name of dataset to replicate')
-    args.add_argument('destination', type=str,
-                      help='where to send the dataset')
+    arg_parser = argparse.ArgumentParser(description=ap_desc)
+    arg_parser.add_argument('-c', '--config',
+                            help='path to configuration for %(prog)s',
+                            type=str)
+    arg_parser.add_argument('dataset', type=str,
+                            help='name of dataset to replicate')
+    arg_parser.add_argument('destination', type=str,
+                            help='where to send the dataset')
+    arg_parser.add_argument('transport', type=str,
+                            help='how to send the dataset, local or ssh. '
+                            + 'If not provided, local assumed.')
+    args = arg_parse.parse_args()
+    if args.dataset or args.destination:
+        # single dataset run
+        if not dataset and destination:
+            logging.error("Please provide both a dataset and a destination")
+            sys.exit("Invalid argument")
+        # TODO: single dataset run logic
+    else:
+        #config run
+        if not os.path.exists(args.config):
+            logging.error("Cannot find config file at "+args.config)
+            sys.exit("Config file not found".)
+        conf = validate_config(args.config)
+        if conf.get('log_file'):
+            # set log file 
+            # if the path is invalid or not writable I bet this'll complain
+            # and that's fine, I'd percolate up any exception anyway
+            logging.basicConfig(filename=conf.get('log_file')) 
+        # TODO future: user selectable logging levels
+        logging.getLogger().setLevel(logging.INFO)
+        # do whatever based on assumed good file
+
+
     # default lockfile location"
     lf_path = "/var/lock/zfsbackup.lock"
-    # TODO: config file parsing. Decide on format.
-    # probably use shlex.quote() in the config file parsing
-    # to make sure dataset names and the like are escaped properly
-    # also enforce permissions on the config file (refuse to run if not
-    # owned by root or writable by non-root users).
     lf_fd = create_lockfile(lf_path)
     # TODO: for each dataset
     #           check for left over timestamp snaps exit if found, loudly
@@ -48,6 +70,33 @@ def main():
     # TODO: clean up and exit
     clean_lockfile(lf_fd)
     sys.exit()
+
+
+def validate_config(conf_path):
+    """Peforms basic validation of config file format.
+       I hope for your sake the actual dataset and destination paths
+       are correct."""
+       # TODO: verify perms of file
+    with open(args.config) as conf_f:
+        try:
+            conf = yaml.load(conf_f.read())
+        except yaml.YAMLError as e:
+            # parsing error
+            logging.error("Invalid config file.")
+            raise e
+    if not conf.get('datasets'):
+        logging.error("Error: no datasets defined, or defined incorrectly")
+        raise ZFSBackupError("Invalid config file.")
+        for d in conf.get('datasets'):
+            if (not d) or (not d.get('dataset_name')) or (not d.get('destinations'))
+            logging.error("Error: dataset config incorrectly defined.")
+            raise ZFSBackupError("Invalid config file.")
+            for l in d.get('destinations'):
+                if (not l) or (not l.get('dest')):
+                    logging.error("Error: destination config incorrectly " 
+                                  + "defined for: "+d.get('dataset_name'))
+                    ZFSBackupError("Invalid config file.")
+    return conf
 
 
 def create_snapshot(dataset, name):
