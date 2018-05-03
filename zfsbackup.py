@@ -16,35 +16,43 @@ def main():
     arg_parser.add_argument('-c', '--config',
                             help='path to configuration for %(prog)s',
                             type=str)
-    arg_parser.add_argument('dataset', type=str,
+    arg_parser.add_argument('dataset', type=str, nargs='?',
                             help='name of dataset to replicate')
-    arg_parser.add_argument('destination', type=str,
+    arg_parser.add_argument('destination', type=str, nargs='?',
                             help='where to send the dataset')
-    arg_parser.add_argument('transport', type=str,
+    arg_parser.add_argument('transport', type=str, nargs='?',
                             help='how to send the dataset, local or ssh. '
                             + 'If not provided, local assumed.')
-    args = arg_parse.parse_args()
+    args = arg_parser.parse_args()
     if args.dataset or args.destination:
         # single dataset run
-        if not dataset and destination:
+        if not args.dataset and args.destination:
             logging.error("Please provide both a dataset and a destination")
             sys.exit("Invalid argument")
+
         # TODO: single dataset run logic
-    else:
-        #config run
+    elif args.config:
+        # config run
         if not os.path.exists(args.config):
             logging.error("Cannot find config file at "+args.config)
-            sys.exit("Config file not found".)
+            sys.exit("Config file not found.")
         conf = validate_config(args.config)
         if conf.get('log_file'):
-            # set log file 
+            # set log file
             # if the path is invalid or not writable I bet this'll complain
             # and that's fine, I'd percolate up any exception anyway
-            logging.basicConfig(filename=conf.get('log_file')) 
+            logging.basicConfig(filename=conf.get('log_file'))
         # TODO future: user selectable logging levels
         logging.getLogger().setLevel(logging.INFO)
         # do whatever based on assumed good file
-
+    elif not args.config:
+        # config file not provided
+        logging.error("Config file required if no other arguments given.")
+        sys.exit("Config file required.")
+    else:
+        # we shouldn't ever get here
+        logging.error("Woops, I guess I broke argument parsing")
+        sys.exit("Programmer error.")
 
     # default lockfile location"
     lf_path = "/var/lock/zfsbackup.lock"
@@ -76,7 +84,7 @@ def validate_config(conf_path):
     """Peforms basic validation of config file format.
        I hope for your sake the actual dataset and destination paths
        are correct."""
-       # TODO: verify perms of file
+    # TODO: verify perms of file
     with open(args.config) as conf_f:
         try:
             conf = yaml.load(conf_f.read())
@@ -88,12 +96,12 @@ def validate_config(conf_path):
         logging.error("Error: no datasets defined, or defined incorrectly")
         raise ZFSBackupError("Invalid config file.")
         for d in conf.get('datasets'):
-            if (not d) or (not d.get('dataset_name')) or (not d.get('destinations'))
-            logging.error("Error: dataset config incorrectly defined.")
-            raise ZFSBackupError("Invalid config file.")
+            if not d or not d.get('dataset_name') or not d.get('destinations'):
+                logging.error("Error: dataset config incorrectly defined.")
+                raise ZFSBackupError("Invalid config file.")
             for l in d.get('destinations'):
                 if (not l) or (not l.get('dest')):
-                    logging.error("Error: destination config incorrectly " 
+                    logging.error("Error: destination config incorrectly "
                                   + "defined for: "+d.get('dataset_name'))
                     ZFSBackupError("Invalid config file.")
     return conf
