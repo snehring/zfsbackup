@@ -1,3 +1,6 @@
+"""
+   zfsbackup.py a simple zfs backup utility
+"""
 import argparse
 import logging
 import subprocess
@@ -35,6 +38,12 @@ def main():
         if not args.dataset and args.destination:
             logging.error("Please provide both a dataset and a destination")
             sys.exit("Invalid argument")
+        # lockfile
+        try:
+            lf_fd = create_lockfile(lf_path)
+        except Exception:
+            logger.critical("Exiting: cannot get a lockfile")
+            sys.exit("Cannot get lockfile")
         name = args.dataset
         dest = args.destination
         transport = args.transport
@@ -67,7 +76,11 @@ def main():
         # TODO future: user selectable logging levels
         logging.getLogger().setLevel(logging.INFO)
         # create lockfile
-        lf_fd = create_lockfile(lf_path)
+        try:
+            lf_fd = create_lockfile(lf_path)
+        except Exception:
+            logger.critical("Exiting: cannot get a lockfile.")
+            sys.exit("Cannot get lockfile")
         for ds in conf.get('datasets'):
             name = ds.get('name')
             if has_straglers(name):
@@ -98,7 +111,7 @@ def main():
 
     # TODO: determine if we want a 'retry queue' of failed datasets
     # if so, make sure those are added into the failure queue above
-    clean_lockfile(lf_fd)
+    clean_lockfile(lf_path, lf_fd)
     sys.exit()
 
 
@@ -513,10 +526,12 @@ def has_backuplast(dataset, inc_name):
 
 
 def create_lockfile(path):
-    """Atomically create a lockfile, exit if not possible.
+    """Atomically create a lockfile
        returns file object coresponding to path.
        param path: path to lockfile
        returns: fd of lockfile
+       throws: FileExistsError if file exists
+       throws: OSerror if file is unable to be created
     """
     try:
         # on linux (the only place this will be used...I hope)
@@ -524,29 +539,31 @@ def create_lockfile(path):
         # will fail if the file already exists
         # this gives us an easy atomic lockfile check/create
         return os.open(path, os.O_CREAT | os.O_EXCL)
-    except FileExistsError:
+    except FileExistsError as e:
         # file already exists, another instance must be running
-        logging.critical("Error: lock file "+path+" already exists. Exiting.")
-        sys.exit("Lock file exists.")
+        logging.critical("Error: lock file "+path+" already exists.")
+        logging.critical(e)
+        raise e
     except OSError as e:
-        # We're unable to create the file for whatever reason. Report it. Exit.
+        # We're unable to create the file for whatever reason. Report it.
         logging.critical("Error: Unable to create lock file.")
         logging.critical(e)
-        sys.exit("Unable to open lock file")
+        raise e
     except Exception as e:
         # some other error has occured, report it and exit.
         logging.critical("Error: unable to get open lock file. Error was"+e)
-        sys.exit("Unable to open lock file.")
+        raise e
 
 
-def clean_lockfile(lockfile):
+def clean_lockfile(path, fd):
     """Clean up lockfile
-       param lockfile: fd of lockfile
+       param path: path to lockfile
+       param fd: fd of lockfile
     """
     # close and remove the lockfile.
     try:
-        os.close(lockfile)
-        os.remove(lockfile)
+        os.close(fd)
+        os.remove(path)
     except OSError as e:
         logging.warning("Unable to clean up lockfile.")
         logging.warning(e)
