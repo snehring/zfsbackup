@@ -33,17 +33,19 @@ def main():
     lf_path = "/var/lock/zfsbackup.lock"
     # TODO: make this user customizable
     incremental_name = "@zfsbackup-last"
+    # error counter
+    errors = 0
     if args.dataset or args.destination:
         # single dataset run
         if not args.dataset and args.destination:
             logging.error("Please provide both a dataset and a destination")
-            sys.exit("Invalid argument")
+            return -1
         # lockfile
         try:
             lf_fd = create_lockfile(lf_path)
         except Exception:
             logger.critical("Exiting: cannot get a lockfile")
-            sys.exit("Cannot get lockfile")
+            return -2
         name = args.dataset
         dest = args.destination
         transport = args.transport
@@ -53,18 +55,19 @@ def main():
                          + "to resolve this manually. Make sure everything "
                          + "is consistent and remove the left over "
                          + "zfsbackup-yyymmdd-hhmm snaps.")
-            sys.exit("Dataset not backed up!")
+            return -1
         else:
             try:
                 backup_dataset(name, dest, incremental_name, transport)
             except ZFSBackupException as e:
                 logging.warn("Dataset backup of "+name+" to "+dest
                              + "FAILED! YOU'LL WANT TO SEE TO THAT!")
+                errors += 1
     elif args.config:
         # config run
         if not os.path.exists(args.config):
-            logging.error("Cannot find config file at "+args.config)
-            sys.exit("Config file not found.")
+            logging.error("Exiting: Cannot find config file at "+args.config)
+            return -1
         conf = validate_config(args.config)
         if conf.get('log_file'):
             # set log file
@@ -80,7 +83,7 @@ def main():
             lf_fd = create_lockfile(lf_path)
         except Exception:
             logger.critical("Exiting: cannot get a lockfile.")
-            sys.exit("Cannot get lockfile")
+            return -1
         for ds in conf.get('datasets'):
             name = ds.get('name')
             if has_straglers(name):
@@ -100,19 +103,23 @@ def main():
                                      + dst.get('dest')+" via "
                                      + dst.get('transport')+" FAILED!"
                                      + "YOU'LL WANT TO SEE TO THAT!")
+                        errors += 1
     elif not args.config:
         # config file not provided
         logging.error("Config file required if no other arguments given.")
-        sys.exit("Config file required.")
+        return -1
     else:
         # we shouldn't ever get here
         logging.error("Woops, I guess I broke argument parsing")
-        sys.exit("Programmer error.")
+        return -128
 
     # TODO: determine if we want a 'retry queue' of failed datasets
     # if so, make sure those are added into the failure queue above
     clean_lockfile(lf_path, lf_fd)
-    sys.exit()
+    if errors > 0:
+        return -10
+    else:
+        return 0
 
 
 def validate_config(conf_path):
@@ -591,4 +598,7 @@ if sys.version_info[0] != 3 or sys.version_info[1] < 6:
     print("This program requires at least Python 3.6")
     sys.exit("Wrong Python")
 if __name__ == "__main__":
-    main()
+    ret = main()
+    if ret < 0:
+        print("Exited with error. Look into it.")
+        sys.exit()
