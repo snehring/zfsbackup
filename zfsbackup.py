@@ -4,6 +4,7 @@
 import argparse
 import logging
 import subprocess
+from subprocess import CalledProcessError, TimeoutExpired
 import re
 import os
 import sys
@@ -264,7 +265,7 @@ def create_snapshot(dataset, name):
     except CalledProcessError as e:
         # returned non-zero
         logging.error("Unable to create snapshot "+dataset+'@'+name)
-        logging.error("Got: "+__cleanup_stdout(e.stderr))
+        logging.error("Got: "+str(__cleanup_stdout(e.stderr)))
         raise ZFSBackupError("Failed to create snapshot "+dataset+'@'+name)
     except TimeoutExpired:
         # timed out
@@ -307,7 +308,7 @@ def delete_snapshot(snapshot):
     except CalledProcessError as e:
         # returned non-zero
         logging.error("Unable to destroy snapshot "+snapshot)
-        logging.error("Got: "+__cleanup_stdout(e.stderr))
+        logging.error("Got: "+str(__cleanup_stdout(e.stderr)))
         raise ZFSBackupError("Failed to delete snapshot "+snapshot)
     except TimeoutExpired:
         # timed out
@@ -329,7 +330,7 @@ def rename_dataset(dataset, newname):
     except CalledProcessError as e:
         # command returned non-zero error code
         logging.error("Error: Unable to rename dataset "+dataset+"to "+newname)
-        logging.error("Got: "+__cleanup_stdout(e.stderr))
+        logging.error("Got: "+str(__cleanup_stdout(e.stderr)))
         raise ZFSBackupError("Failed to rename dataset: "+dataset+" newname: "
                              + newname)
     except TimeoutExpired:
@@ -509,7 +510,7 @@ def get_snapshots(dataset):
         # command returned non-zero error code
         logging.error("Unable to get list of snapshots for " + dataset
                       + ". zfs list returned non-zero return code.")
-        logging.error("Got: "+__cleanup_stdout(e.stderr))
+        logging.error("Got: "+str(__cleanup_stdout(e.stderr)))
         raise ZFSBackupError("Unable to get list of snapshots for "+dataset)
     except TimeoutExpired:
         # command timed out
