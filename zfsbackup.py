@@ -389,6 +389,7 @@ def send_snapshot(snapshot, destination, transport='local',
     else:
         zsend_command = ['zfs', 'send', '-ec', snapshot]
     zrecv_command = ['zfs', 'recv', '-F', destination]
+    # TODO: need to better capture the error message from the send/recv to help the user
     if transport.lower() == 'local':
         zfs_send = subprocess.Popen(zsend_command, stdout=subprocess.PIPE)
         zfs_recv = subprocess.Popen(zrecv_command, stdin=zfs_send.stdout)
@@ -398,6 +399,7 @@ def send_snapshot(snapshot, destination, transport='local',
             zfs_send.wait()
         except Exception as e:
             zfs_recv.kill()
+            zfs_send.stdout.close()
             zfs_send.kill()
             logging.error("Error: exception while sending: "+e)
             raise ZFSBackupError("Caught an exception while sending "+e)
@@ -406,6 +408,7 @@ def send_snapshot(snapshot, destination, transport='local',
             logging.error("Error: send of "+snapshot+" to "
                           + destination+" failed.")
             zfs_recv.kill()
+            zfs_send.stdout.close()
             zfs_send.kill()
             raise ZFSBackupError("Send of "+snapshot+" to "
                                  + destination+" failed.")
@@ -429,12 +432,16 @@ def send_snapshot(snapshot, destination, transport='local',
             ssh_recv.wait()
             zfs_send.wait()
         except Exception as e:
-            zfs_send.kill()
             ssh_recv.kill()
+            zfs_send.stdout.close()
+            zfs_send.kill()
             logging.error("Error: exception caught while sending: "+e)
             raise ZFSBackupError("Caught an exception while sending "+e)
         if (zfs_send.returncode != 0) or (ssh_recv != 0):
             # we failed somewhere
+            ssh_recv.kill()
+            zfs_send.stdout.close()
+            zfs_send.kill()
             logging.error("Error: send of "+snapshot+" to "
                           + destination+" failed.")
             raise ZFSBackupError("Send of "+snapshot+" to "
