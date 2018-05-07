@@ -398,9 +398,13 @@ def send_snapshot(snapshot, destination, transport='local',
             zfs_recv_stderr = zfs_recv_stderr.decode('utf-8')
             zfs_recv.wait()
             zfs_send.wait()
+            zfs_send.stderr.close()
+            zfs_send.stdout.close()
         except Exception as e:
+            zfs_recv.stderr.close()
             zfs_recv.kill()
             zfs_send.stdout.close()
+            zfs_send.stderr.close()
             zfs_send.kill()
             logging.error("Error: exception while sending: "+str(e))
             raise ZFSBackupError("Caught an exception while sending "+str(e))
@@ -410,10 +414,7 @@ def send_snapshot(snapshot, destination, transport='local',
                           + destination+" failed.")
             logging.error("zfs send stderr: "+zfs_send_stderr)
             logging.error("zfs recv stderr: "+zfs_recv_stderr)
-            zfs_recv.stderr.close()
             zfs_recv.kill()
-            zfs_send.stdout.close()
-            zfs_send.stderr.close()
             zfs_send.kill()
             raise ZFSBackupError("Send of "+snapshot+" to "
                                  + destination+" failed.")
@@ -438,16 +439,18 @@ def send_snapshot(snapshot, destination, transport='local',
             zfs_recv_stderr = zfs_recv_stderr.decode('utf-8')
             ssh_recv.wait()
             zfs_send.wait()
+            zfs_send.stderr.close()
+            zfs_send.stdout.close()
         except Exception as e:
             ssh_recv.kill()
             zfs_send.stdout.close()
+            zfs_send.stderr.close()
             zfs_send.kill()
             logging.error("Error: exception caught while sending: "+str(e))
             raise ZFSBackupError("Caught an exception while sending "+str(e))
         if (zfs_send.returncode != 0) or (ssh_recv.returncode != 0):
             # we failed somewhere
             ssh_recv.kill()
-            zfs_send.stdout.close()
             zfs_send.kill()
             logging.error("Error: send of "+snapshot+" to "
                           + destination+" failed.")
