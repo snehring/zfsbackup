@@ -237,7 +237,8 @@ def verify_backup(snapshot, destination, transport):
             username, hostname = transport.split(':')[1].split('@')
             zfs = "zfs list -H -t snapshot -o name "+destination+snapshot
             ssh_command = ['ssh', '-o', 'PreferredAuthentications=publickey',
-                           '-o', 'PubkeyAuthentication=yes', '-p', port, '-l',
+                           '-o', 'PubkeyAuthentication=yes',
+                           '-o', 'StrictHostKeyChecking=yes', '-p', port, '-l',
                            username, hostname, zfs]
             ssh = subprocess.run(ssh_command, stderr=subprocess.PIPE,
                                  check=True, timeout=10, encoding='utf-8')
@@ -425,18 +426,21 @@ def send_snapshot(snapshot, destination, transport='local',
         if len(transport.split(':')) > 2:
             # assume that the 3rd element is a port number
             port = transport.split(':')[2]
-        zfs_send = subprocess.Popen(zsend_command, stdout=subprocess.PIPE)
+        zfs_send = subprocess.Popen(zsend_command, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE)
         # TODO: have a configurable for ssh-key instead of just assuming
         username, hostname = transport.split(':')[1].split('@')
         ssh_remote_command = "zfs recv -F "+destination
         ssh_command = ['ssh', '-o', 'PreferredAuthentications=publickey',
-                       '-o', 'PubkeyAuthentication=yes', '-p', port, '-l',
+                       '-o', 'PubkeyAuthentication=yes', 
+                       '-o', 'StrictHostKeyChecking=yes','-p', port, '-l',
                        username, hostname, ssh_remote_command]
-        ssh_recv = subprocess.Popen(ssh_command, stdin=zfs_send.stdout)
+        ssh_recv = subprocess.Popen(ssh_command, stdin=zfs_send.stdout,
+                                    stderr=subprocess.PIPE)
         try:
             ssh_recv_stderr = ssh_recv.communicate()[1]
             zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
-            zfs_recv_stderr = zfs_recv_stderr.decode('utf-8')
+            ssh_recv_stderr = ssh_recv_stderr.decode('utf-8')
             ssh_recv.wait()
             zfs_send.wait()
             zfs_send.stderr.close()
