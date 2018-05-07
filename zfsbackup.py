@@ -397,14 +397,16 @@ def send_snapshot(snapshot, destination, transport='local',
             zfs_recv.wait()
             zfs_send.wait()
         except Exception as e:
-            zfs_send.kill()
             zfs_recv.kill()
+            zfs_send.kill()
             logging.error("Error: exception while sending: "+e)
             raise ZFSBackupError("Caught an exception while sending "+e)
         if (zfs_send.returncode != 0) or (zfs_recv != 0):
             # we failed somewhere
             logging.error("Error: send of "+snapshot+" to "
                           + destination+" failed.")
+            zfs_recv.kill()
+            zfs_send.kill()
             raise ZFSBackupError("Send of "+snapshot+" to "
                                  + destination+" failed.")
         logging.info("Finished send of "+snapshot+" via <"
