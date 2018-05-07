@@ -389,26 +389,31 @@ def send_snapshot(snapshot, destination, transport='local',
     else:
         zsend_command = ['zfs', 'send', '-ec', snapshot]
     zrecv_command = ['zfs', 'recv', '-F', destination]
-    # TODO: need to better capture the error message from the send/recv to help the user
     if transport.lower() == 'local':
-        zfs_send = subprocess.Popen(zsend_command, stdout=subprocess.PIPE)
-        zfs_recv = subprocess.Popen(zrecv_command, stdin=zfs_send.stdout)
+        zfs_send = subprocess.Popen(zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        zfs_recv = subprocess.Popen(zrecv_command, stdin=zfs_send.stdout, stderr=subprocess.PIPE)
         try:
-            zfs_recv.communicate()
+            zfs_recv_stderr = zfs_recv.communicate()[1]
+            zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
+            zfs_recv_stderr = zfs_recv_stderr.decode('utf-8')
             zfs_recv.wait()
             zfs_send.wait()
         except Exception as e:
             zfs_recv.kill()
             zfs_send.stdout.close()
             zfs_send.kill()
-            logging.error("Error: exception while sending: "+e)
-            raise ZFSBackupError("Caught an exception while sending "+e)
-        if (zfs_send.returncode != 0) or (zfs_recv != 0):
+            logging.error("Error: exception while sending: "+str(e))
+            raise ZFSBackupError("Caught an exception while sending "+str(e))
+        if (zfs_send.returncode != 0) or (zfs_recv.returncode != 0):
             # we failed somewhere
             logging.error("Error: send of "+snapshot+" to "
                           + destination+" failed.")
+            logging.error("zfs send stderr: "+zfs_send_stderr)
+            logging.error("zfs recv stderr: "+zfs_recv_stderr)
+            zfs_recv.stderr.close()
             zfs_recv.kill()
             zfs_send.stdout.close()
+            zfs_send.stderr.close()
             zfs_send.kill()
             raise ZFSBackupError("Send of "+snapshot+" to "
                                  + destination+" failed.")
@@ -428,22 +433,26 @@ def send_snapshot(snapshot, destination, transport='local',
                        username, hostname, ssh_remote_command]
         ssh_recv = subprocess.Popen(ssh_command, stdin=zfs_send.stdout)
         try:
-            ssh_recv.communicate()
+            ssh_recv_stderr = ssh_recv.communicate()[1]
+            zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
+            zfs_recv_stderr = zfs_recv_stderr.decode('utf-8')
             ssh_recv.wait()
             zfs_send.wait()
         except Exception as e:
             ssh_recv.kill()
             zfs_send.stdout.close()
             zfs_send.kill()
-            logging.error("Error: exception caught while sending: "+e)
-            raise ZFSBackupError("Caught an exception while sending "+e)
-        if (zfs_send.returncode != 0) or (ssh_recv != 0):
+            logging.error("Error: exception caught while sending: "+str(e))
+            raise ZFSBackupError("Caught an exception while sending "+str(e))
+        if (zfs_send.returncode != 0) or (ssh_recv.returncode != 0):
             # we failed somewhere
             ssh_recv.kill()
             zfs_send.stdout.close()
             zfs_send.kill()
             logging.error("Error: send of "+snapshot+" to "
                           + destination+" failed.")
+            logging.error("zfs send stderr: "+zfs_send_stderr)
+            logging.error("zfs recv stderr: "+zfs_recv_stderr)
             raise ZFSBackupError("Send of "+snapshot+" to "
                                  + destination+" failed.")
         logging.info("Finished send of "+snapshot+"via <"
@@ -559,16 +568,16 @@ def create_lockfile(path):
     except FileExistsError as e:
         # file already exists, another instance must be running
         logging.critical("Error: lock file "+path+" already exists.")
-        logging.critical(e)
+        logging.critical(str(e))
         raise e
     except OSError as e:
         # We're unable to create the file for whatever reason. Report it.
         logging.critical("Error: Unable to create lock file.")
-        logging.critical(e)
+        logging.critical(str(e))
         raise e
     except Exception as e:
         # some other error has occured, report it and exit.
-        logging.critical("Error: unable to get open lock file. Error was"+e)
+        logging.critical("Error: unable to get open lock file. Error was"+str(e))
         raise e
 
 
@@ -583,7 +592,7 @@ def clean_lockfile(path, fd):
         os.remove(path)
     except OSError as e:
         logging.warning("Unable to clean up lockfile.")
-        logging.warning(e)
+        logging.warning(str(e))
 
 
 def __cleanup_stdout(stdout):
@@ -596,7 +605,7 @@ def __cleanup_stdout(stdout):
 
 class ZFSBackupError(Exception):
     """Exception for this program."""
-
+    # TODO: expand this so it's more than just a message
     def __init__(self, message):
         """Constructor
            param message: message this exception should have
