@@ -459,7 +459,7 @@ def send_snapshot(snapshot, destination, transport='local',
             logging.error("Error: send of "+snapshot+" to "
                           + destination+" failed.")
             logging.error("zfs send stderr: "+zfs_send_stderr)
-            logging.error("zfs recv stderr: "+zfs_recv_stderr)
+            logging.error("ssh recv stderr: "+ssh_recv_stderr)
             raise ZFSBackupError("Send of "+snapshot+" to "
                                  + destination+" failed.")
         logging.info("Finished send of "+snapshot+"via <"
