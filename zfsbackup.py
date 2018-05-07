@@ -130,7 +130,7 @@ def validate_config(conf_path):
        :param conf_path: path to the config file
        :return: returns the validated yaml file as a python object"""
     # TODO: verify perms of file
-    with open(args.config) as conf_f:
+    with open(conf_path) as conf_f:
         try:
             conf = yaml.load(conf_f.read())
         except yaml.YAMLError as e:
