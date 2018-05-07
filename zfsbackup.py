@@ -522,7 +522,7 @@ def get_snapshots(dataset):
 def has_backuplast(dataset, inc_name):
     """return true if dataset has a backup-last snapshot
        param dataset: dataset to check
-       param inc_name: name of snapshot that is the last backup
+       param inc_name: name of snapshot that is the last backup. Include '@'
        returns: True if the snapshot is found, False otherwise
        throws: ZFSBackupError if a list of snapshots cannot be obtained
     """
