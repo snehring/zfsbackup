@@ -50,6 +50,7 @@ def main():
         name = args.dataset
         dest = args.destination
         transport = args.transport
+        dests = [{'dest':dest,'transport':transport}]
         if has_straglers(name):
             logging.warn("Dataset: "+name+"has left over temporary "
                          + "snapshots. IT WAS NOT BACKED UP! You need "
@@ -59,7 +60,7 @@ def main():
             return -1
         else:
             try:
-                backup_dataset(name, dest, incremental_name, transport=transport)
+                backup_dataset(name, dests, incremental_name)
             except ZFSBackupError as e:
                 logging.warn("Dataset backup of "+name+" to "+dest
                              + "FAILED! YOU'LL WANT TO SEE TO THAT!")
@@ -86,6 +87,8 @@ def main():
             logger.critical("Exiting: cannot get a lockfile.")
             return -1
         for ds in conf.get('datasets'):
+            # for each dataset check stragglers
+            # if none, backup
             name = ds.get('dataset_name')
             if has_straglers(name):
                 logging.warn("Dataset: "+name+"has left over temporary "
@@ -95,16 +98,15 @@ def main():
                              + "the left over zfsbackup-yyyymmdd-hhmm snaps.")
                 continue
             else:
-                for dst in ds.get('destinations'):
-                    try:
-                        backup_dataset(name, dst.get('dest'), incremental_name,
-                                       transport=dst.get('transport'))
-                    except ZFSBackupError as e:
-                        logging.warn("Dataset backup of "+name+" to "
-                                     + dst.get('dest')+" via "
-                                     + dst.get('transport')+" FAILED!"
-                                     + "YOU'LL WANT TO SEE TO THAT!")
-                        errors += 1
+                try:
+                    backup_dataset(name, ds.get('destinations'),
+                                   incremental_name)
+                except ZFSBackupError as e:
+                    logging.warn("Dataset backup of "+name+" to "
+                                 + dst.get('dest')+" via "
+                                 + dst.get('transport')+" FAILED!"
+                                 + "YOU'LL WANT TO SEE TO THAT!")
+                    errors += 1
     elif not args.config:
         # config file not provided
         logging.error("Config file required if no other arguments given.")
@@ -152,22 +154,26 @@ def validate_config(conf_path):
     return conf
 
 
-def backup_dataset(dataset, destination, inc_snap, transport='local'):
-    """Backup a dataset to the specified destination using the specified
-       transport.
+def backup_dataset(dataset, destinations, inc_snap):
+    """Backup a dataset to the specified destinations using the specified
+       transport. If it is determined that this is an incremental backup
+       it will do an incremental send and delete the old inc_snap and
+       rename the most recent snapshot to inc_snap.
+       Otherwise it will create a snap, send it, and rename it to
+       inc_snap when finished.
        param dataset: dataset to be backed up
-       param destination: destination dataset
+       param destinations: list of dest dicts
        param inc_snap: the incremental source snapshot
-       param transport: the method to send the zfs stream
        raises: ZFSBackupError"""
     try:
         new_snap = create_timestamp_snap(dataset)
         if has_backuplast(dataset, inc_snap):
             # do incremental
-            send_incremental(dataset+inc_snap, dataset+new_snap,
-                             destination, transport=transport)
-            logging.info("Incremental send of "+dataset+new_snap+" to "
-                         + destination+" via "+transport+" finished.")
+            for d in destinations:
+                send_incremental(dataset+inc_snap, dataset+new_snap,
+                                 d.get('dest'), transport=d.get('transport'))
+                logging.info("Incremental send of "+dataset+new_snap+" to "
+                             + d.get('dest')+" via "+d.get('transport')+" finished.")
             # delete old incremental marker
             try:
                 delete_snapshot(dataset+inc_snap)
@@ -179,25 +185,31 @@ def backup_dataset(dataset, destination, inc_snap, transport='local'):
                 raise e
         else:
             # do full send
-            send_full(dataset+new_snap, destination, transport=transport)
-            logging.info("Full send of "+dataset+new_snap+" to " + destination
-                         + " via "+transport+" finished.")
-        if verify_backup(new_snap, destination, transport):
-            # good backup
-            logging.info("Verification of "+destination+new_snap+" via "
-                         + transport+" finished.")
-        else:
-            # bad backup exit
-            logging.error("Verification of "+destination+new_Snap+" via"
-                          + transport+" FAILED!")
-            try:
-                delete_snapshot(dataset+new_snap)
-            except Exception as e:
-                logging.error("Unable to clean up snapshot "+dataset+new_snap
-                              + " after failed verification.")
-            finally:
-                raise ZFSBackupError("Verification of "+destination+new_snap
-                                     + " FAILED!")
+            for d in destinations:
+                send_full(dataset+new_snap, d.get('dest'),
+                          transport=d.get('transport'))
+                logging.info("Full send of "+dataset+new_snap+" to "
+                             + d.get('dest')
+                             + " via "+d.get('transport')+" finished.")
+        errors = 0
+        for d in destinations:
+            if verify_backup(new_snap, d.get('dest'), d.get('transport')):
+                # good backup
+                logging.info("Verification of "+d.get('dest')+new_snap+" via "
+                             + d.get('transport')+" finished.")
+            else:
+                # bad backup note
+                logging.error("Verification of "+d.get('dest')+new_snap+" via"
+                              + d.get('transport')+" FAILED!")
+                errors += 1
+                try:
+                    delete_snapshot(dataset+new_snap)
+                except Exception as e:
+                    logging.error("Unable to clean up snapshot "+dataset+new_snap
+                                  + " after failed verification.")
+        if errors > 0:
+            raise ZFSBackupError("Verification of "+d.get('dest')+new_snap
+                                 + " FAILED!")
         # rename dataset+new_snap to dataset+inc_snap
         try:
             rename_snapshot(dataset+new_snap, dataset+inc_snap)
@@ -209,8 +221,7 @@ def backup_dataset(dataset, destination, inc_snap, transport='local'):
                           + dataset+inc_snap+" YOU NEED TO DO THIS MANUALLY!")
             raise e
     except ZFSBackupError as e:
-        logging.error("Failed backup of "+dataset+" to "+destination
-                      + " via "+transport)
+        logging.error("Failed backup of "+dataset+" to "+str(destinations))
         raise e
 
 
@@ -260,7 +271,7 @@ def create_snapshot(dataset, name):
        throws: ZFSBackupError if snapshot fails
        """
     try:
-        zfs = subprocess.run(['zfs', 'snap', dataset+'@'+name], timeout=10,
+        zfs = subprocess.run(['zfs', 'snap', dataset+'@'+name], timeout=30,
                              stderr=subprocess.PIPE, check=True,
                              encoding='utf-8')
     except CalledProcessError as e:
