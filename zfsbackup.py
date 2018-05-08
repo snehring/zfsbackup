@@ -60,7 +60,7 @@ def main():
         else:
             try:
                 backup_dataset(name, dest, incremental_name, transport)
-            except ZFSBackupException as e:
+            except ZFSBackupError as e:
                 logging.warn("Dataset backup of "+name+" to "+dest
                              + "FAILED! YOU'LL WANT TO SEE TO THAT!")
                 errors += 1
@@ -99,7 +99,7 @@ def main():
                     try:
                         backup_dataset(name, dst.get('dest'), incremental_name,
                                        dst.get('transport'))
-                    except ZFSBackupException as e:
+                    except ZFSBackupError as e:
                         logging.warn("Dataset backup of "+name+" to "
                                      + dst.get('dest')+" via "
                                      + dst.get('transport')+" FAILED!"
