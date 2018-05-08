@@ -98,7 +98,7 @@ def main():
                 for dst in ds.get('destinations'):
                     try:
                         backup_dataset(name, dst.get('dest'), incremental_name,
-                                       dst.get('transport'))
+                                       transport=dst.get('transport'))
                     except ZFSBackupError as e:
                         logging.warn("Dataset backup of "+name+" to "
                                      + dst.get('dest')+" via "
