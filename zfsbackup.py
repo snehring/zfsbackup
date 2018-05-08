@@ -51,7 +51,7 @@ def main():
         dest = args.destination
         transport = args.transport
         dests = [{'dest':dest,'transport':transport}]
-        if has_straglers(name):
+        if has_stragglers(name):
             logging.warn("Dataset: "+name+"has left over temporary "
                          + "snapshots. IT WAS NOT BACKED UP! You need "
                          + "to resolve this manually. Make sure everything "
@@ -90,7 +90,7 @@ def main():
             # for each dataset check stragglers
             # if none, backup
             name = ds.get('dataset_name')
-            if has_straglers(name):
+            if has_stragglers(name):
                 logging.warn("Dataset: "+name+"has left over temporary "
                              + "snapshots. IT WAS NOT BACKED UP! You need "
                              + "to resolve this manually. Make sure "
@@ -511,10 +511,10 @@ def send_incremental(snapshot1, snapshot2, destination, transport='local'):
                   incremental_source=snapshot1)
 
 
-def has_straglers(dataset):
-    """Returns true if dataset has stragler zfsbackup-<datestamp> snapshots
+def has_stragglers(dataset):
+    """Returns true if dataset has straggler zfsbackup-<datestamp> snapshots
        param dataset: dataset to check
-       returns: True if straglers are found, False otherwise
+       returns: True if stragglers are found, False otherwise
        throws: ZFSBackupError if unable to get list of snapshots
     """
     snaps = get_snapshots(dataset)
