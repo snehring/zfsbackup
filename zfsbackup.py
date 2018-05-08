@@ -86,7 +86,7 @@ def main():
             logger.critical("Exiting: cannot get a lockfile.")
             return -1
         for ds in conf.get('datasets'):
-            name = ds.get('name')
+            name = ds.get('dataset_name')
             if has_straglers(name):
                 logging.warn("Dataset: "+name+"has left over temporary "
                              + "snapshots. IT WAS NOT BACKED UP! You need "
@@ -216,8 +216,8 @@ def backup_dataset(dataset, destination, inc_snap, transport='local'):
 
 def verify_backup(snapshot, destination, transport):
     """Verify backup is at destination
-       param snapshot: snapshot that needs its presence verified
-       param destination: where snapshot should be
+       param snapshot: snapshot that needs its presence verified (@name)
+       param destination: where snapshot should be (dataset)
        param transport: how to get to destination
        returns: True if the snapshot is present at destination, else False
        """
