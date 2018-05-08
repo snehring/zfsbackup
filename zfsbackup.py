@@ -337,7 +337,7 @@ def rename_dataset(dataset, newname):
     """
     try:
         zfs = subprocess.run(['zfs', 'rename', dataset, newname],
-                             stderr=subprocess.PIPE, check=True, timeout=10,
+                             stderr=subprocess.PIPE, check=True, timeout=30,
                              encoding='utf-8')
     except CalledProcessError as e:
         # command returned non-zero error code
