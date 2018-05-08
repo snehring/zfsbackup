@@ -50,7 +50,7 @@ def main():
         name = args.dataset
         dest = args.destination
         transport = args.transport
-        dests = [{'dest':dest,'transport':transport}]
+        dests = [{'dest': dest, 'transport': transport}]
         if has_stragglers(name):
             logging.warn("Dataset: "+name+"has left over temporary "
                          + "snapshots. IT WAS NOT BACKED UP! You need "
@@ -173,7 +173,8 @@ def backup_dataset(dataset, destinations, inc_snap):
                 send_incremental(dataset+inc_snap, dataset+new_snap,
                                  d.get('dest'), transport=d.get('transport'))
                 logging.info("Incremental send of "+dataset+new_snap+" to "
-                             + d.get('dest')+" via "+d.get('transport')+" finished.")
+                             + d.get('dest')+" via "+d.get('transport')
+                             + " finished.")
             # delete old incremental marker
             try:
                 delete_snapshot(dataset+inc_snap)
@@ -205,7 +206,8 @@ def backup_dataset(dataset, destinations, inc_snap):
                 try:
                     delete_snapshot(dataset+new_snap)
                 except Exception as e:
-                    logging.error("Unable to clean up snapshot "+dataset+new_snap
+                    logging.error("Unable to clean up snapshot "
+                                  + dataset+new_snap
                                   + " after failed verification.")
         if errors > 0:
             raise ZFSBackupError("Verification of "+d.get('dest')+new_snap
@@ -402,8 +404,10 @@ def send_snapshot(snapshot, destination, transport='local',
         zsend_command = ['zfs', 'send', '-ec', snapshot]
     zrecv_command = ['zfs', 'recv', '-F', destination]
     if transport.lower() == 'local':
-        zfs_send = subprocess.Popen(zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        zfs_recv = subprocess.Popen(zrecv_command, stdin=zfs_send.stdout, stderr=subprocess.PIPE)
+        zfs_send = subprocess.Popen(zsend_command, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE)
+        zfs_recv = subprocess.Popen(zrecv_command, stdin=zfs_send.stdout,
+                                    stderr=subprocess.PIPE)
         try:
             zfs_recv_stderr = zfs_recv.communicate()[1]
             zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
@@ -443,8 +447,8 @@ def send_snapshot(snapshot, destination, transport='local',
         username, hostname = transport.split(':')[1].split('@')
         ssh_remote_command = "zfs recv -F "+destination
         ssh_command = ['ssh', '-o', 'PreferredAuthentications=publickey',
-                       '-o', 'PubkeyAuthentication=yes', 
-                       '-o', 'StrictHostKeyChecking=yes','-p', port, '-l',
+                       '-o', 'PubkeyAuthentication=yes',
+                       '-o', 'StrictHostKeyChecking=yes', '-p', port, '-l',
                        username, hostname, ssh_remote_command]
         ssh_recv = subprocess.Popen(ssh_command, stdin=zfs_send.stdout,
                                     stderr=subprocess.PIPE)
@@ -595,7 +599,8 @@ def create_lockfile(path):
         raise e
     except Exception as e:
         # some other error has occured, report it and exit.
-        logging.critical("Error: unable to get open lock file. Error was"+str(e))
+        logging.critical("Error: unable to get open lock file. Error was"
+                         + str(e))
         raise e
 
 
