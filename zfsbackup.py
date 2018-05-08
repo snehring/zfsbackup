@@ -176,7 +176,7 @@ def backup_dataset(dataset, destination, inc_snap, transport='local'):
                 logging.error("Unable to delete "+dataset+inc_snap
                               + " YOU NEED TO DELETE THAT AND THEN RENAME "
                               + dataset+new_snap+" TO "+dataset+inc_snap)
-            raise e
+                raise e
         else:
             # do full send
             send_full(dataset+new_snap, destination, transport=transport)
