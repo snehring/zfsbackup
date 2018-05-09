@@ -61,7 +61,7 @@ def main():
         else:
             try:
                 backup_dataset(name, dests, incremental_name)
-            except ZFSBackupError as e:
+            except ZFSBackupError:
                 logging.warn("Dataset backup of "+name+" to "+dest
                              + "FAILED! YOU'LL WANT TO SEE TO THAT!")
                 errors += 1
@@ -101,7 +101,7 @@ def main():
                 try:
                     backup_dataset(name, ds.get('destinations'),
                                    incremental_name)
-                except ZFSBackupError as e:
+                except ZFSBackupError:
                     logging.warn("Dataset backup of "+name+" to "
                                  + ds.get('dest')+" via "
                                  + ds.get('transport')+" FAILED!"
@@ -259,7 +259,7 @@ def verify_backup(snapshot, destination, transport):
         else:
             # crap we don't do
             return False
-    except Exception as e:
+    except Exception:
         logging.Error("Unable to verify snap: "+snapshot+" exists at: "
                       + destination+" via "+transport)
         raise ZFSBackupError("Failed to verify backup of "+snapshot+" to "
