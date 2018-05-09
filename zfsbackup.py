@@ -45,7 +45,7 @@ def main():
         try:
             lf_fd = create_lockfile(lf_path)
         except Exception:
-            logger.critical("Exiting: cannot get a lockfile")
+            logging.critical("Exiting: cannot get a lockfile")
             return -2
         name = args.dataset
         dest = args.destination
@@ -84,7 +84,7 @@ def main():
         try:
             lf_fd = create_lockfile(lf_path)
         except Exception:
-            logger.critical("Exiting: cannot get a lockfile.")
+            logging.critical("Exiting: cannot get a lockfile.")
             return -1
         for ds in conf.get('datasets'):
             # for each dataset check stragglers
@@ -103,8 +103,8 @@ def main():
                                    incremental_name)
                 except ZFSBackupError as e:
                     logging.warn("Dataset backup of "+name+" to "
-                                 + dst.get('dest')+" via "
-                                 + dst.get('transport')+" FAILED!"
+                                 + ds.get('dest')+" via "
+                                 + ds.get('transport')+" FAILED!"
                                  + "YOU'LL WANT TO SEE TO THAT!")
                     errors += 1
     elif not args.config:
