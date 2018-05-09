@@ -410,10 +410,10 @@ def send_snapshot(snapshot, destination, transport='local',
                                     stderr=subprocess.PIPE)
         try:
             zfs_recv_stderr = zfs_recv.communicate()[1]
-            zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
-            zfs_recv_stderr = zfs_recv_stderr.decode('utf-8')
             zfs_recv.wait()
             zfs_send.wait()
+            zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
+            zfs_recv_stderr = zfs_recv_stderr.decode('utf-8')
             zfs_send.stderr.close()
             zfs_send.stdout.close()
         except Exception as e:
@@ -454,10 +454,10 @@ def send_snapshot(snapshot, destination, transport='local',
                                     stderr=subprocess.PIPE)
         try:
             ssh_recv_stderr = ssh_recv.communicate()[1]
-            zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
-            ssh_recv_stderr = ssh_recv_stderr.decode('utf-8')
             ssh_recv.wait()
             zfs_send.wait()
+            zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
+            ssh_recv_stderr = ssh_recv_stderr.decode('utf-8')
             zfs_send.stderr.close()
             zfs_send.stdout.close()
         except Exception as e:
