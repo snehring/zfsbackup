@@ -413,8 +413,6 @@ def send_snapshot(snapshot, destination, transport='local',
                         logging.error("Error: recv of "+snapshot+" to "
                                       + destination+" failed.")
                         logging.error("zfs recv stderr: "+zfs_recv_stderr)
-                        zfs_recv.kill()
-                        zfs_send.kill()
                         raise ZFSBackupError("zfs recv of "+snapshot+" to "
                                              + destination+" failed.")
                     zfs_send.wait()
@@ -423,13 +421,9 @@ def send_snapshot(snapshot, destination, transport='local',
                         logging.error("Error: send of "+snapshot+" to "
                                       + destination+" failed.")
                         logging.error("zfs send stderr: "+zfs_send_stderr)
-                        zfs_recv.kill()
-                        zfs_send.kill()
                         raise ZFSBackupError("zfs send of "+snapshot+" to"
                                              + destination+" failed.")
                 except Exception as e:
-                    zfs_recv.kill()
-                    zfs_send.kill()
                     logging.error("Error: exception while sending: "+str(e))
                     raise ZFSBackupError("Caught an exception while sending "+str(e))
                 logging.info("Finished send of "+snapshot+" via <"
@@ -457,8 +451,6 @@ def send_snapshot(snapshot, destination, transport='local',
                         logging.error("Error: recv of "+snapshot+" to "
                                       + destination+" failed.")
                         logging.error("ssh recv stderr: "+ssh_recv_stderr)
-                        ssh_recv.kill()
-                        zfs_send.kill()
                         raise ZFSBackupError("ssh recv of "+snapshot+" to "
                                              + destination+" failed.")
 
@@ -468,8 +460,6 @@ def send_snapshot(snapshot, destination, transport='local',
                         logging.error("Error: send of "+snapshot+" to "
                                       + destination+" failed.")
                         logging.error("zfs send stderr: "+zfs_send_stderr)
-                        ssh_recv.kill()
-                        zfs_send.kill()
                         raise ZFSBackupError("zfs send of "+snapshot+" to"
                                              + destination+" failed.")
                 except Exception as e:
@@ -479,8 +469,6 @@ def send_snapshot(snapshot, destination, transport='local',
                     raise ZFSBackupError("Caught an exception while sending "+str(e))
                 if (zfs_send.returncode != 0) or (ssh_recv.returncode != 0):
                     # we failed somewhere
-                    ssh_recv.kill()
-                    zfs_send.kill()
                     logging.error("Error: send of "+snapshot+" to "
                                   + destination+" failed.")
                     logging.error("zfs send stderr: "+zfs_send_stderr)
@@ -660,6 +648,9 @@ class run(subprocess.Popen):
             
         if self.stderr:
             self.stderr.close()
+        
+        self.kill()
+            
 
 if sys.version_info[0] != 3 or sys.version_info[1] < 6:
     print("This program requires at least Python 3.6")
