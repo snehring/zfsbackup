@@ -52,7 +52,7 @@ def main():
         transport = args.transport
         dests = [{'dest': dest, 'transport': transport}]
         if has_stragglers(name):
-            logging.warn("Dataset: "+name+"has left over temporary "
+            logging.warn("Dataset: "+name+" has left over temporary "
                          + "snapshots. IT WAS NOT BACKED UP! You need "
                          + "to resolve this manually. Make sure everything "
                          + "is consistent and remove the left over "
@@ -103,8 +103,7 @@ def main():
                                    incremental_name)
                 except ZFSBackupError:
                     logging.warn("Dataset backup of "+name+" to "
-                                 + ds.get('dest')+" via "
-                                 + ds.get('transport')+" FAILED!"
+                                 + str(ds.get('destinations'))+" FAILED!"
                                  + "YOU'LL WANT TO SEE TO THAT!")
                     errors += 1
     elif not args.config:
@@ -411,9 +410,31 @@ def send_snapshot(snapshot, destination, transport='local',
         try:
             zfs_recv_stderr = zfs_recv.communicate()[1]
             zfs_recv.wait()
+            if zfs_recv.returncode != 0:
+                zfs_recv_stderr = zfs_recv_stderr.decode('utf-8')
+                logging.error("Error: recv of "+snapshot+" to "
+                              + destination+" failed.")
+                logging.error("zfs recv stderr: "+zfs_recv_stderr)
+                zfs_recv.kill()
+                zfs_send.kill()
+                zfs_recv.stderr.close()
+                zfs_send.stdout.close()
+                zfs_send.stderr.close()
+                raise ZFSBackupError("zfs recv of "+snapshot+" to "
+                                     + destination+" failed.")
             zfs_send.wait()
-            zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
-            zfs_recv_stderr = zfs_recv_stderr.decode('utf-8')
+            if zfs_send.returncode != 0:
+                zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
+                logging.error("Error: send of "+snapshot+" to "
+                              + destination+" failed.")
+                logging.error("zfs send stderr: "+zfs_send_stderr)
+                zfs_recv.kill()
+                zfs_send.kill()
+                zfs_recv.stderr.close()
+                zfs_send.stdout.close()
+                zfs_send.stderr.close()
+                raise ZFSBackupError("zfs send of "+snapshot+" to"
+                                     + destination+" failed.")
             zfs_send.stderr.close()
             zfs_send.stdout.close()
         except Exception as e:
@@ -424,16 +445,6 @@ def send_snapshot(snapshot, destination, transport='local',
             zfs_send.kill()
             logging.error("Error: exception while sending: "+str(e))
             raise ZFSBackupError("Caught an exception while sending "+str(e))
-        if (zfs_send.returncode != 0) or (zfs_recv.returncode != 0):
-            # we failed somewhere
-            logging.error("Error: send of "+snapshot+" to "
-                          + destination+" failed.")
-            logging.error("zfs send stderr: "+zfs_send_stderr)
-            logging.error("zfs recv stderr: "+zfs_recv_stderr)
-            zfs_recv.kill()
-            zfs_send.kill()
-            raise ZFSBackupError("Send of "+snapshot+" to "
-                                 + destination+" failed.")
         logging.info("Finished send of "+snapshot+" via <"
                      + transport.lower()+"> to "+destination)
     elif transport.lower().split(':')[0] == 'ssh':
@@ -455,9 +466,32 @@ def send_snapshot(snapshot, destination, transport='local',
         try:
             ssh_recv_stderr = ssh_recv.communicate()[1]
             ssh_recv.wait()
+            if ssh_recv.returncode != 0:
+                ssh_recv_stderr = ssh_recv_stderr.decode('utf-8')
+                logging.error("Error: recv of "+snapshot+" to "
+                              + destination+" failed.")
+                logging.error("ssh recv stderr: "+ssh_recv_stderr)
+                ssh_recv.kill()
+                zfs_send.kill()
+                zfs_send.stdout.close()
+                zfs_send.stderr.close()
+                ssh_recv.stderr.close()
+                raise ZFSBackupError("ssh recv of "+snapshot+" to "
+                                     + destination+" failed.")
+
             zfs_send.wait()
-            zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
-            ssh_recv_stderr = ssh_recv_stderr.decode('utf-8')
+            if zfs_send.returncode != 0:
+                zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
+                logging.error("Error: send of "+snapshot+" to "
+                              + destination+" failed.")
+                logging.error("zfs send stderr: "+zfs_send_stderr)
+                ssh_recv.kill()
+                zfs_send.kill()
+                ssh_recv.stderr.close()
+                zfs_send.stdout.close()
+                zfs_send.stderr.close()
+                raise ZFSBackupError("zfs send of "+snapshot+" to"
+                                     + destination+" failed.")
             zfs_send.stderr.close()
             zfs_send.stdout.close()
         except Exception as e:
