@@ -260,7 +260,7 @@ def verify_backup(snapshot, destination, transport):
             # crap we don't do
             return False
     except Exception:
-        logging.Error("Unable to verify snap: "+snapshot+" exists at: "
+        logging.error("Unable to verify snap: "+snapshot+" exists at: "
                       + destination+" via "+transport)
         raise ZFSBackupError("Failed to verify backup of "+snapshot+" to "
                              + destination+" via "+transport)
