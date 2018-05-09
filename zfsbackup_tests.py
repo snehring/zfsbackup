@@ -134,6 +134,15 @@ class TestZFSBackup(unittest.TestCase):
         snaps = zfsbackup.get_snapshots(destination)
         self.assertTrue(destination+'@zfsbackup-sendtest' in snaps)
 
+    def testSendSnapshotSSHAlt(self):
+        dataset = self.base_dataset+'/'+self.source_dataset
+        snapshot = dataset+'@zfsbackup-sendtest'
+        destination = self.base_dataset+'/'+self.dest_dataset
+        zfsbackup.create_snapshot(dataset,'zfsbackup-sendtest')
+        zfsbackup.send_snapshot(snapshot, destination,transport="ssh:root@localhost:44")
+        snaps = zfsbackup.get_snapshots(destination)
+        self.assertTrue(destination+'@zfsbackup-sendtest' in snaps)
+
     def testSendFullLocal(self):
         dataset = self.base_dataset+'/'+self.source_dataset
         dest = self.base_dataset+'/'+self.dest_dataset
@@ -147,6 +156,14 @@ class TestZFSBackup(unittest.TestCase):
         dest = self.base_dataset+'/'+self.dest_dataset
         snap = zfsbackup.create_timestamp_snap(dataset)
         zfsbackup.send_full(dataset+snap,dest,transport="ssh:root@localhost")
+        snaps = zfsbackup.get_snapshots(dest)
+        self.assertTrue(dest+snap in snaps)
+
+    def testSendFullSSHAlt(self):
+        dataset = self.base_dataset+'/'+self.source_dataset
+        dest = self.base_dataset+'/'+self.dest_dataset
+        snap = zfsbackup.create_timestamp_snap(dataset)
+        zfsbackup.send_full(dataset+snap,dest,transport="ssh:root@localhost:44")
         snaps = zfsbackup.get_snapshots(dest)
         self.assertTrue(dest+snap in snaps)
 
