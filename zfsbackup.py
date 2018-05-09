@@ -645,21 +645,21 @@ class ZFSBackupError(Exception):
         """
         self.message = message
 
-class run(object):
+class run(subprocess.Popen):
 
     def __init__(self, *args, **kwargs):
-        self.proc = subprocess.Popen(*args, **kwargs)
+        subprocess.Popen.__init__(self, *args, **kwargs)
 
     def __enter__(self):
-        return self.proc
+        return self
 
     def __exit__(self, exc_type, value, traceback):
     
-        if self.proc.stdout:
-            self.proc.stdout.close()
+        if self.stdout:
+            self.stdout.close()
             
-        if self.proc.stderr:
-            self.proc.stderr.close()
+        if self.stderr:
+            self.stderr.close()
 
 if sys.version_info[0] != 3 or sys.version_info[1] < 6:
     print("This program requires at least Python 3.6")
