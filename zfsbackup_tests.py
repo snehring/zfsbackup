@@ -84,8 +84,8 @@ class TestZFSBackup(unittest.TestCase):
     def testHasStraglers(self):
         dataset = self.base_dataset+'/'+self.source_dataset
         nope = self.base_dataset+'/'+self.other_dataset
-        self.assertFalse(zfsbackup.has_straglers(dataset))
-        self.assertTrue(zfsbackup.has_straglers(nope))
+        self.assertFalse(zfsbackup.has_stragglers(dataset))
+        self.assertTrue(zfsbackup.has_stragglers(nope))
 
     def testRenameSnapshot(self):
         dataset = self.base_dataset+'/'+self.source_dataset
@@ -163,6 +163,15 @@ class TestZFSBackup(unittest.TestCase):
         snap = zfsbackup.create_timestamp_snap(dataset)
         zfsbackup.send_full(dataset+snap,dest)
         self.assertTrue(zfsbackup.verify_backup(snap,dest,'ssh:root@localhost'))
+
+    def testVerifyBackupFail(self):
+        dataset = self.base_dataset+'/'+self.source_dataset
+        snap = '@obviously-fake'
+        try:
+            result = zfsbackup.verify_backup(snap,dataset,'local')
+            self.assertFalse(result)
+        except ZFSBackupError:
+            pass
 
     def testSendIncrementalLocal(self):
         dataset = self.base_dataset+'/'+self.source_dataset
