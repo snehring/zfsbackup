@@ -403,24 +403,19 @@ def send_snapshot(snapshot, destination, transport='local',
         zsend_command = ['zfs', 'send', '-ec', snapshot]
     zrecv_command = ['zfs', 'recv', '-F', destination]
     if transport.lower() == 'local':
-        with run(zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as zfs_send:
-            with run(zrecv_command, stdin=zfs_send.stdout, stderr=subprocess.PIPE) as zfs_recv:
+        with run('zfs send', zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as zfs_send:
+            with run('zfs recv', zrecv_command, stdin=zfs_send.stdout, stderr=subprocess.PIPE) as zfs_recv:
                 try:
-                    zfs_recv_stderr = zfs_recv.communicate()[1]
                     zfs_recv.wait()
                     if zfs_recv.returncode != 0:
-                        zfs_recv_stderr = zfs_recv_stderr.decode('utf-8')
                         logging.error("Error: recv of "+snapshot+" to "
                                       + destination+" failed.")
-                        logging.error("zfs recv stderr: "+zfs_recv_stderr)
                         raise ZFSBackupError("zfs recv of "+snapshot+" to "
                                              + destination+" failed.")
                     zfs_send.wait()
                     if zfs_send.returncode != 0:
-                        zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
                         logging.error("Error: send of "+snapshot+" to "
                                       + destination+" failed.")
-                        logging.error("zfs send stderr: "+zfs_send_stderr)
                         raise ZFSBackupError("zfs send of "+snapshot+" to"
                                              + destination+" failed.")
                 except Exception as e:
@@ -434,7 +429,7 @@ def send_snapshot(snapshot, destination, transport='local',
         if len(transport.split(':')) > 2:
             # assume that the 3rd element is a port number
             port = transport.split(':')[2]
-        with run(zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as zfs_send:
+        with run('zfs send', zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as zfs_send:
             # TODO: have a configurable for ssh-key instead of just assuming
             username, hostname = transport.split(':')[1].split('@')
             ssh_remote_command = "zfs recv -F "+destination
@@ -442,37 +437,28 @@ def send_snapshot(snapshot, destination, transport='local',
                            '-o', 'PubkeyAuthentication=yes',
                            '-o', 'StrictHostKeyChecking=yes', '-p', port, '-l',
                            username, hostname, ssh_remote_command]
-            with run(ssh_command, stdin=zfs_send.stdout, stderr=subprocess.PIPE) as ssh_recv:
+            with run('ssh recv', ssh_command, stdin=zfs_send.stdout, stderr=subprocess.PIPE) as ssh_recv:
                 try:
-                    ssh_recv_stderr = ssh_recv.communicate()[1]
                     ssh_recv.wait()
                     if ssh_recv.returncode != 0:
-                        ssh_recv_stderr = ssh_recv_stderr.decode('utf-8')
                         logging.error("Error: recv of "+snapshot+" to "
                                       + destination+" failed.")
-                        logging.error("ssh recv stderr: "+ssh_recv_stderr)
                         raise ZFSBackupError("ssh recv of "+snapshot+" to "
                                              + destination+" failed.")
 
                     zfs_send.wait()
                     if zfs_send.returncode != 0:
-                        zfs_send_stderr = zfs_send.stderr.read().decode('utf-8')
                         logging.error("Error: send of "+snapshot+" to "
                                       + destination+" failed.")
-                        logging.error("zfs send stderr: "+zfs_send_stderr)
                         raise ZFSBackupError("zfs send of "+snapshot+" to"
                                              + destination+" failed.")
                 except Exception as e:
-                    ssh_recv.kill()
-                    zfs_send.kill()
                     logging.error("Error: exception caught while sending: "+str(e))
                     raise ZFSBackupError("Caught an exception while sending "+str(e))
                 if (zfs_send.returncode != 0) or (ssh_recv.returncode != 0):
                     # we failed somewhere
                     logging.error("Error: send of "+snapshot+" to "
                                   + destination+" failed.")
-                    logging.error("zfs send stderr: "+zfs_send_stderr)
-                    logging.error("ssh recv stderr: "+ssh_recv_stderr)
                     raise ZFSBackupError("Send of "+snapshot+" to "
                                          + destination+" failed.")
                 logging.info("Finished send of "+snapshot+"via <"
@@ -636,12 +622,16 @@ class ZFSBackupError(Exception):
 class run(subprocess.Popen):
 
     def __init__(self, *args, **kwargs):
+        self.log_tag = args.pop(0)
         subprocess.Popen.__init__(self, *args, **kwargs)
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, value, traceback):
+    
+        if isinstance(value, ZFSBackupError):
+            logging.error(self.log_tag + ' stderr:' + self.stderr.read().decode('utf-8'))
     
         if self.stdout:
             self.stdout.close()
