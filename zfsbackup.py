@@ -622,8 +622,8 @@ class ZFSBackupError(Exception):
 class run(subprocess.Popen):
 
     def __init__(self, *args, **kwargs):
-        self.log_tag = args.pop(0)
-        subprocess.Popen.__init__(self, *args, **kwargs)
+        self.log_tag = args[0]
+        subprocess.Popen.__init__(self, *args[1:], **kwargs)
 
     def __enter__(self):
         return self
