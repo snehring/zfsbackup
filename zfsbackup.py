@@ -391,9 +391,6 @@ def send_snapshot(snapshot, destination, transport='local',
         raise ZFSBackupError("Tried to send non-snapshot "+snapshot)
     if incremental_source:
         if '@' not in incremental_source:
-            logging.error("Error: incremental_source is not a snapshot. snap: "
-                          + snapshot+"dest: "+destination+" inc_source: "
-                          + incremental_source)
             raise ZFSBackupError("incremental_source not a snapshot. snap: "
                                  + snapshot+" dest: "+destination
                                  + " inc_source: "+incremental_source)
@@ -408,18 +405,13 @@ def send_snapshot(snapshot, destination, transport='local',
                 try:
                     zfs_recv.wait()
                     if zfs_recv.returncode != 0:
-                        logging.error("Error: recv of "+snapshot+" to "
-                                      + destination+" failed.")
                         raise ZFSBackupError("zfs recv of "+snapshot+" to "
                                              + destination+" failed.")
                     zfs_send.wait()
                     if zfs_send.returncode != 0:
-                        logging.error("Error: send of "+snapshot+" to "
-                                      + destination+" failed.")
                         raise ZFSBackupError("zfs send of "+snapshot+" to"
                                              + destination+" failed.")
                 except Exception as e:
-                    logging.error("Error: exception while sending: "+str(e))
                     raise ZFSBackupError("Caught an exception while sending "+str(e))
                 logging.info("Finished send of "+snapshot+" via <"
                              + transport.lower()+"> to "+destination)
@@ -441,24 +433,17 @@ def send_snapshot(snapshot, destination, transport='local',
                 try:
                     ssh_recv.wait()
                     if ssh_recv.returncode != 0:
-                        logging.error("Error: recv of "+snapshot+" to "
-                                      + destination+" failed.")
                         raise ZFSBackupError("ssh recv of "+snapshot+" to "
                                              + destination+" failed.")
 
                     zfs_send.wait()
                     if zfs_send.returncode != 0:
-                        logging.error("Error: send of "+snapshot+" to "
-                                      + destination+" failed.")
                         raise ZFSBackupError("zfs send of "+snapshot+" to"
                                              + destination+" failed.")
                 except Exception as e:
-                    logging.error("Error: exception caught while sending: "+str(e))
                     raise ZFSBackupError("Caught an exception while sending "+str(e))
                 if (zfs_send.returncode != 0) or (ssh_recv.returncode != 0):
                     # we failed somewhere
-                    logging.error("Error: send of "+snapshot+" to "
-                                  + destination+" failed.")
                     raise ZFSBackupError("Send of "+snapshot+" to "
                                          + destination+" failed.")
                 logging.info("Finished send of "+snapshot+"via <"
@@ -467,7 +452,6 @@ def send_snapshot(snapshot, destination, transport='local',
         # some transport we don't support
         # shouldn't happen with config parsing
         # handle it anyway
-        logging.error("Error: invalid transport specified: "+transport)
         raise ZFSBackupError("Invalid transport: "+transport)
 
 
@@ -618,6 +602,8 @@ class ZFSBackupError(Exception):
            param message: message this exception should have
         """
         self.message = message
+        
+        logging.error(message)
 
 class run(subprocess.Popen):
 
