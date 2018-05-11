@@ -203,7 +203,7 @@ class TestZFSBackup(unittest.TestCase):
         dest = self.base_dataset+'/'+self.dest_dataset
         snap = zfsbackup.create_timestamp_snap(dataset)
         zfsbackup.send_full(dataset+snap,dest)
-        time.sleep(60)
+        time.sleep(1)
         snap_inc = zfsbackup.create_timestamp_snap(dataset)
         zfsbackup.send_incremental(dataset+snap,dataset+snap_inc,dest)
         self.assertTrue(zfsbackup.verify_backup(snap_inc,dest,'local'))
@@ -213,7 +213,7 @@ class TestZFSBackup(unittest.TestCase):
         dest = self.base_dataset+'/'+self.dest_dataset
         snap = zfsbackup.create_timestamp_snap(dataset)
         zfsbackup.send_full(dataset+snap,dest,transport='ssh:root@localhost')
-        time.sleep(60)
+        time.sleep(1)
         snap_inc = zfsbackup.create_timestamp_snap(dataset)
         zfsbackup.send_incremental(dataset+snap,dataset+snap_inc,dest,transport='ssh:root@localhost')
         self.assertTrue(zfsbackup.verify_backup(snap_inc,dest,'ssh:root@localhost'))
@@ -239,7 +239,7 @@ class TestZFSBackup(unittest.TestCase):
         dest = [{'dest':self.base_dataset+'/'+self.dest_dataset,'transport':'local'}]
         try:
             zfsbackup.backup_dataset(dataset,dest,'@zfsbackup-last')
-            time.sleep(60)
+            time.sleep(1)
             zfsbackup.backup_dataset(dataset,dest,'@zfsbackup-last')
         except ZFSBackupError as e:
             self.fail("caught exception "+e.message)
@@ -249,7 +249,7 @@ class TestZFSBackup(unittest.TestCase):
         dest = [{'dest':self.base_dataset+'/'+self.dest_dataset,'transport':'ssh:root@localhost'}]
         try:
             zfsbackup.backup_dataset(dataset,dest,'@zfsbackup-last')
-            time.sleep(60)
+            time.sleep(1)
             zfsbackup.backup_dataset(dataset,dest,'@zfsbackup-last')
         except ZFSBackupError as e:
             self.fail("caught exception "+e.message)
@@ -275,7 +275,7 @@ class TestZFSBackup(unittest.TestCase):
         dest = [{'dest':self.base_dataset+'/'+self.dest_dataset,'transport':'local'},{'dest':self.base_dataset+'/destination2','transport':'local'}]
         try:
             zfsbackup.backup_dataset(dataset,dest,'@zfsbackup-last')
-            time.sleep(60)
+            time.sleep(1)
             zfsbackup.backup_dataset(dataset,dest,'@zfsbackup-last')
         except ZFSBackupError as e:
             self.fail("caught exception: "+e.message)
@@ -285,7 +285,7 @@ class TestZFSBackup(unittest.TestCase):
         dest = [{'dest':self.base_dataset+'/'+self.dest_dataset,'transport':'ssh:root@localhost'},{'dest':self.base_dataset+'/destination2','transport':'ssh:root@localhost'}]
         try:
             zfsbackup.backup_dataset(dataset,dest,'@zfsbackup-last')
-            time.sleep(60)
+            time.sleep(1)
             zfsbackup.backup_dataset(dataset,dest,'@zfsbackup-last')
         except ZFSBackupError as e:
             self.fail("caught exception: "+e.message)
@@ -314,6 +314,8 @@ class TestZFSBackup(unittest.TestCase):
     def testSendSnapshotBadDestLarge(self):
         dataset = self.base_dataset+'/'+self.source_dataset
         generateLargeFile('/'+dataset+'/largefile',1)
+        # needed or my test vm is unhappy
+        time.sleep(5)
         dest = self.base_dataset+'/non-existent-dataset/butreally'
         zfsbackup.create_snapshot(dataset, 'zfsbackup-sendtest')
         try:
