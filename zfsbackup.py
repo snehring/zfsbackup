@@ -277,15 +277,12 @@ def create_snapshot(dataset, name):
                              encoding='utf-8')
     except CalledProcessError as e:
         # returned non-zero
-        logging.error("Unable to create snapshot "+dataset+'@'+name)
-        logging.error("Got: "+str(__cleanup_stdout(e.stderr)))
-        raise ZFSBackupError("Failed to create snapshot "+dataset+'@'+name)
+        raise ZFSBackupError("Failed to create snapshot "+dataset+'@'+name
+                             + " Got: "+str(__cleanup_stdout(e.stderr)))
     except TimeoutExpired:
         # timed out
-        logging.error("Failed to create snapshot " + dataset + '@' + name +
-                      ". Timeout reached.")
         raise ZFSBackupError("Failed to create snapshot " + dataset +
-                             '@' + name)
+                             '@' + name+". Timeout reached.")
 
 
 def create_timestamp_snap(dataset):
@@ -405,6 +402,8 @@ def send_snapshot(snapshot, destination, transport='local',
                 try:
                     zfs_recv.wait()
                     if zfs_recv.returncode != 0:
+                        zfs_send.kill()
+                        zfs_send.wait()
                         raise ZFSBackupError("zfs recv of "+snapshot+" to "
                                              + destination+" failed.")
                     zfs_send.wait()
