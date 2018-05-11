@@ -293,7 +293,7 @@ def create_timestamp_snap(dataset):
        throws: ZFSBackupError if snapshot fails
        """
     # call create_snapshot with correct name
-    timestamp = datetime.now().strftime('%Y%m%d-%H%M')
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
     create_snapshot(dataset, 'zfsbackup-'+timestamp)
     return '@zfsbackup-'+timestamp
 
@@ -489,7 +489,7 @@ def has_stragglers(dataset):
        throws: ZFSBackupError if unable to get list of snapshots
     """
     snaps = get_snapshots(dataset)
-    regex = re.compile(".*@zfsbackup-\d{8}-\d{4}")
+    regex = re.compile(".*@zfsbackup-\d{8}-\d{6}")
     # this is likely not the best way to do this, but it shouldn't be too awful
     matches = list(filter(regex.match, snaps))
     if matches:
