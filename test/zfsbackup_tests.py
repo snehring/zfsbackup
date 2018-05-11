@@ -284,17 +284,17 @@ class TestZFSBackup(unittest.TestCase):
 
     def testSendSnapshotBadDest(self):
         dataset = self.base_dataset+'/'+self.source_dataset
-        dest = self.base_dataset+'/non-existent-dataset'
+        dest = self.base_dataset+'/non-existent-dataset/butreally'
         zfsbackup.create_snapshot(dataset, 'zfsbackup-sendtest')
         try:
-            zfsbackup.send_snapshot(dataset+'@zfsbackup-sendtest')
+            zfsbackup.send_snapshot(dataset+'@zfsbackup-sendtest',dest)
         except ZFSBackupError:
-            pass
+            return
         self.fail("This should fail.")
 
     def testValidateConfig(self):
         # do more than this
-        c = zfsbackup.validate_config('./config_example.yml')
+        c = zfsbackup.validate_config('../config_example.yml')
         self.assertTrue('log_file' in c)
         self.assertTrue('lock_file' in c)
         for ds in c.get('datasets'):
