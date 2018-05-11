@@ -5,6 +5,14 @@ import subprocess
 import os
 import time
 
+def generateLargeFile(path,size=1):
+    """
+    Generate a large file at a given path of size GB.
+    Default to 1 GB.
+    """
+    with open(path, mode='wb') as f:
+        f.write(bytearray(os.urandom(1024**3*size)))
+
 
 class TestZFSBackup(unittest.TestCase):
     """
@@ -290,7 +298,30 @@ class TestZFSBackup(unittest.TestCase):
             zfsbackup.send_snapshot(dataset+'@zfsbackup-sendtest',dest)
         except ZFSBackupError:
             return
-        self.fail("This should fail.")
+        self.fail("Should have caught an exception")
+
+    def testSendSnapshotBadSrc(self):
+        dataset = self.base_dataset+'/deffo-real'
+        dest = self.base_dataset+'/'+self.dest_dataset
+        try:
+            zfsbackup.send_snapshot(dataset+'@ohyeahthissnapisreal',dest)
+        except ZFSBackupError:
+            return
+        except ResourceWarning:
+            self.fail("Caught a ResourceWarning")
+        self.fail("Should have caught an exception")
+
+    def testSendSnapshotBadDestLarge(self):
+        dataset = self.base_dataset+'/'+self.source_dataset
+        generateLargeFile('/'+dataset+'/largefile',1)
+        dest = self.base_dataset+'/non-existent-dataset/butreally'
+        zfsbackup.create_snapshot(dataset, 'zfsbackup-sendtest')
+        try:
+            zfsbackup.send_snapshot(dataset+'@zfsbackup-sendtest',dest)
+        except ZFSBackupError:
+            return
+        self.fail("Should have caught an exception")
+
 
     def testValidateConfig(self):
         # do more than this
