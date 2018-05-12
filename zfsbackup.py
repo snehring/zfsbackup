@@ -237,8 +237,9 @@ def verify_backup(snapshot, destination, transport):
         if transport == 'local':
             zfs_command = ['zfs', 'list', '-H', '-t', 'snapshot',
                            '-o', 'name', destination+snapshot]
-            zfs = subprocess.run(zfs_command, stderr=subprocess.PIPE,
-                                 check=True, timeout=10, encoding='utf-8')
+            zfs = subprocess.run(zfs_command, check=True, timeout=10,
+                                 encoding='utf-8', stderr=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL)
             return True
         elif transport.lower().split(':')[0] == 'ssh':
             port = '22'
@@ -252,8 +253,9 @@ def verify_backup(snapshot, destination, transport):
                            '-o', 'PubkeyAuthentication=yes',
                            '-o', 'StrictHostKeyChecking=yes', '-p', port, '-l',
                            username, hostname, zfs]
-            ssh = subprocess.run(ssh_command, stderr=subprocess.PIPE,
-                                 check=True, timeout=10, encoding='utf-8')
+            ssh = subprocess.run(ssh_command, check=True, timeout=10,
+                                 encoding='utf-8', stderr=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL)
             return True
         else:
             # crap we don't do
