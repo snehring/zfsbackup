@@ -434,6 +434,8 @@ def send_snapshot(snapshot, destination, transport='local',
                 try:
                     ssh_recv.wait()
                     if ssh_recv.returncode != 0:
+                        zfs_send.kill()
+                        zfs_send.wait()
                         raise ZFSBackupError("ssh recv of "+snapshot+" to "
                                              + destination+" failed.")
 
