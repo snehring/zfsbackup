@@ -139,17 +139,14 @@ def validate_config(conf_path):
             logging.error("Invalid config file.")
             raise e
     if not conf.get('datasets'):
-        logging.error("Error: no datasets defined, or defined incorrectly")
-        raise ZFSBackupError("Invalid config file.")
+        raise ZFSBackupError("Error: no datasets defined, or defined incorrectly.")
         for d in conf.get('datasets'):
             if not d or not d.get('dataset_name') or not d.get('destinations'):
-                logging.error("Error: dataset config incorrectly defined.")
-                raise ZFSBackupError("Invalid config file.")
+                raise ZFSBackupError("Error: dataset config incorrectly defined.")
             for l in d.get('destinations'):
                 if (not l) or (not l.get('dest')):
-                    logging.error("Error: destination config incorrectly "
+                    ZFSBackupError("Error: destination config incorrectly "
                                   + "defined for: "+d.get('dataset_name'))
-                    ZFSBackupError("Invalid config file.")
     return conf
 
 
@@ -309,8 +306,6 @@ def delete_snapshot(snapshot):
    """
     # try to make sure we're not deleting anything other than a snapshot
     if '@' not in snapshot:
-        logging.error("Error: tried to delete "+snapshot +
-                      " which seems to not be a snapshot")
         raise ZFSBackupError(
             "Tried to delete something other than a snapshot. Was: "+snapshot)
     try:
@@ -324,9 +319,8 @@ def delete_snapshot(snapshot):
         raise ZFSBackupError("Failed to delete snapshot "+snapshot)
     except TimeoutExpired:
         # timed out
-        logging.error("Unable to destroy snapshot " +
+        raise ZFSBackupError("Unable to destroy snapshot " +
                       snapshot+". Timeout reached.")
-        raise ZFSBackupError("Failed to delete snapshot "+snapshot)
 
 
 def rename_dataset(dataset, newname):
@@ -347,8 +341,7 @@ def rename_dataset(dataset, newname):
                              + newname)
     except TimeoutExpired:
         # timed out
-        logging.error("Unable to rename dataset "+dataset+". Timeout Reached.")
-        raise ZFSBackupError("Failed to rename dataset "+dataset)
+        raise ZFSBackupError("Unable to rename dataset "+dataset+". Timeout Reached.")
 
 
 def rename_snapshot(snapshot, newname):
@@ -359,13 +352,10 @@ def rename_snapshot(snapshot, newname):
     """
     # check that it's a snapshot
     if ('@' not in snapshot) or ('@' not in newname):
-        logging.error("Error: tried to rename a non-snapshot or rename a"
+        raise ZFSBackupError("Error: tried to rename a non-snapshot or rename a"
                       + "snapshot to a non-snapshot."
                       + "Snapshot was: "+snapshot+"and newname was: "
                       + newname)
-        raise ZFSBackupError(
-            "Tried to rename a snapshot incorrectly. snapshot: "
-            + snapshot+" newname: "+newname)
     # call the function to actually rename
     rename_dataset(snapshot, newname)
 
@@ -386,8 +376,7 @@ def send_snapshot(snapshot, destination, transport='local',
     throws: ZFSBackup error if send fails, or snapshot params aren't snapshots
     """
     if '@' not in snapshot:
-        logging.error("Error: tried to send non snapshot "+snapshot)
-        raise ZFSBackupError("Tried to send non-snapshot "+snapshot)
+        raise ZFSBackupError("Error: tried to send non snapshot "+snapshot)
     if incremental_source:
         if '@' not in incremental_source:
             raise ZFSBackupError("incremental_source not a snapshot. snap: "
@@ -525,9 +514,8 @@ def get_snapshots(dataset):
         raise ZFSBackupError("Unable to get list of snapshots for "+dataset)
     except TimeoutExpired:
         # command timed out
-        logging.error("Unable to get list of snapshots for "
+        raise ZFSBackupError("Unable to get list of snapshots for "
                       + dataset+". Timeout reached.")
-        raise ZFSBackupError("Unable to get list of snapshots for "+dataset)
 
 
 def has_backuplast(dataset, inc_name):
@@ -607,6 +595,7 @@ class ZFSBackupError(Exception):
         self.message = message
         
         logging.error(message)
+
 
 class run(subprocess.Popen):
 
