@@ -12,6 +12,7 @@ def generateLargeFile(path,size=1):
     """
     with open(path, mode='wb') as f:
         f.write(bytearray(os.urandom(1024**3*size)))
+    subprocess.run(['sync'])
 
 
 class TestZFSBackup(unittest.TestCase):
@@ -314,8 +315,6 @@ class TestZFSBackup(unittest.TestCase):
     def testSendSnapshotBadDestLarge(self):
         dataset = self.base_dataset+'/'+self.source_dataset
         generateLargeFile('/'+dataset+'/largefile',1)
-        # needed or my test vm is unhappy
-        time.sleep(5)
         dest = self.base_dataset+'/non-existent-dataset/butreally'
         zfsbackup.create_snapshot(dataset, 'zfsbackup-sendtest')
         try:
