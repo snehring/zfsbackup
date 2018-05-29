@@ -91,11 +91,12 @@ def main():
             # if none, backup
             name = ds.get('dataset_name')
             if has_stragglers(name):
-                logging.warn("Dataset: "+name+"has left over temporary "
+                logging.warn("Dataset: "+name+" has left over temporary "
                              + "snapshots. IT WAS NOT BACKED UP! You need "
                              + "to resolve this manually. Make sure "
                              + "everything is consistent and remove "
                              + "the left over zfsbackup-yyyymmdd-hhmm snaps.")
+                errors += 1
                 continue
             else:
                 try:
