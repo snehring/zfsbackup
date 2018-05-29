@@ -531,6 +531,35 @@ def has_backuplast(dataset, inc_name):
     else:
         return False
 
+def clean_dest_snaps(dataset, transport, num_snaps):
+    """
+       delete all but the last num_snaps snapshots from dataset via transport
+       param dataset: dataset to remove snapshots from
+       param transport: transport to use (same form as send_snapshot)
+       param num_snaps: number of snapshots that should be kept
+    """
+    # TODO
+    if transport.lower() == 'local':
+        # local transport
+        # TODO
+        pass
+    elif transport.lower().split(':')[0] == 'ssh':
+        # ssh transport
+        # TODO
+        pass
+    else:
+        # unsupported transport
+        raise ZFSBackupError("Invalid transport: "+transport)
+
+def __sort_snapshots(snaps):
+    """
+       sort the list of snaps
+       param snaps: list of snaps
+    """
+    # TODO sort list
+    pass
+
+
 
 def create_lockfile(path):
     """Atomically create a lockfile
