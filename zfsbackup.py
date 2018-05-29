@@ -552,14 +552,24 @@ def clean_dest_snaps(dataset, transport, num_snaps):
         # unsupported transport
         raise ZFSBackupError("Invalid transport: "+transport)
 
-def __sort_snapshots(snaps):
+def __get_snapshots_to_delete(snaps, nsave):
     """
        sort the list of snaps
        param snaps: list of snaps
+       param nsave: number of snaps to save
     """
-    # TODO sort list
-    pass
+    return sorted(snaps)[:len(snaps)-nsave]
 
+def __do_ssh_command(user, host, ssh_args=None, cmd):
+    """
+       do a command via ssh
+       param user: username to run as
+       param host: host to run on
+       param ssh_args: arguments to ssh
+       param cmd: command to run
+    """
+    # TODO implement wrapper for run
+    pass
 
 
 def create_lockfile(path):
