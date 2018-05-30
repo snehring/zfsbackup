@@ -540,36 +540,83 @@ def clean_dest_snaps(dataset, transport, num_snaps):
        param num_snaps: number of snapshots that should be kept
     """
     # TODO
+    zfs_command = ['zfs', 'list', '-H', '-r', '-t', 'snapshot',
+                   '-o', 'name', dataset]
     if transport.lower() == 'local':
         # local transport
-        # TODO
-        pass
+        snaps = __snap_delete_format(__run_command(zfs_command), num_snaps)
+        errors = 0
+        for snap in snaps:
+            try:
+                delete_snapshot(snap)
+            except ZFSBackupError:
+                errors += 1
+        if errors > 0:
+            logging.warn("Encountered errors while deleting old snapshots" 
+                         + "from destination: "+dataset+" via "
+                         + transport)
     elif transport.lower().split(':')[0] == 'ssh':
         # ssh transport
-        # TODO
-        pass
+        user, host = transport.lower().split(':')[1].split('@')
+        port = 22
+        if transport.lower().split(':') > 2:
+            # 3rd element is port
+            port = transport.lower().split(':')[2]
+        snaps = __snap_delete_format(__run_ssh_command(user, host, port,
+                                     zfs_command), num_snaps)
+        errors = 0
+        for snap in snaps:
+            zfs_snap_delete = ['zfs', 'destroy', snap]
+            try:
+                __run_ssh_command(user, host, port, zfs_snap_delete)
+            except subprocess.SubprocessError:
+                errors += 1
+            if errors > 0:
+                logging.warn("Encountered errors while deleting old snapshots"
+                         + "from destination: "+dataset+" via "
+                         + transport)
     else:
         # unsupported transport
         raise ZFSBackupError("Invalid transport: "+transport)
 
-def __get_snapshots_to_delete(snaps, nsave):
+
+def __snap_delete_format(snaps, nsave):
     """
-       sort the list of snaps
+       sort the list of snaps and pair down to those we want to delete
+       filters the list for the snap format we have
        param snaps: list of snaps
        param nsave: number of snaps to save
     """
-    return sorted(snaps)[:len(snaps)-nsave]
+    regex = re.compile(".*@zfsbackup-\d{8}-\d{6}")
+    matches = list(filter(regex.match, snaps))
+    return sorted(matches)[:len(matches)-nsave]
 
-def __do_ssh_command(user, host, ssh_args=None, cmd):
+
+def __run_command(command):
+    """
+       run a command
+       param command: command to run
+       returns: the stdout returned from command as a list
+    """
+    cmd = subprocess.run(command, stdout=subprocess.PIPE, check=True,
+                         encoding='utf8', timeout=60)
+    return __cleanup_stdout(cmd.stdout)
+
+
+def __run_ssh_command(user, host, port, cmd):
     """
        do a command via ssh
        param user: username to run as
        param host: host to run on
        param ssh_args: arguments to ssh
        param cmd: command to run
+       returns: the stdout of the command
     """
-    # TODO implement wrapper for run
-    pass
+    ssh_inv = ['ssh', '-o', 'PreferredAuthentications=publickey',
+               '-o', 'PubkeyAuthentication=yes',
+               '-o', 'StrictHostKeyChecking=yes', '-p', port, '-l',
+               user, host, cmd]
+    return __run_command(ssh_inv)
 
 
 def create_lockfile(path):
