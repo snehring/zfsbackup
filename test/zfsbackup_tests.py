@@ -340,8 +340,8 @@ class TestZFSBackup(unittest.TestCase):
         saved_last = zfsbackup.create_timestamp_snap(dataset)
         time.sleep(1)
         zfsbackup.clean_dest_snaps(dataset, 'local', 2)
-        zfsbackup.verify_backup(dataset+saved_penultimate, dataset, 'local')
-        zfsbackup.verify_backup(dataset+saved_last, dataset, 'local')
+        zfsbackup.verify_backup(saved_penultimate, dataset, 'local')
+        zfsbackup.verify_backup(saved_last, dataset, 'local')
 
 
     def testDestSnapshotDeleteSSH(self):
@@ -361,8 +361,8 @@ class TestZFSBackup(unittest.TestCase):
         saved_last = zfsbackup.create_timestamp_snap(dataset)
         time.sleep(1)
         zfsbackup.clean_dest_snaps(dataset, 'ssh:root@localhost', 2)
-        zfsbackup.verify_backup(dataset+saved_penultimate, dataset, 'ssh:root@localhost')
-        zfsbackup.verify_backup(dataset+saved_last, dataset, 'ssh:root@localhost')
+        zfsbackup.verify_backup(saved_penultimate, dataset, 'ssh:root@localhost')
+        zfsbackup.verify_backup(saved_last, dataset, 'ssh:root@localhost')
 
 
     def testValidateConfig(self):
