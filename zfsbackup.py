@@ -558,7 +558,7 @@ def clean_dest_snaps(dataset, transport, num_snaps):
     elif transport.lower().split(':')[0] == 'ssh':
         # ssh transport
         user, host = transport.lower().split(':')[1].split('@')
-        port = 22
+        port = '22'
         if len(transport.split(':')) > 2:
             # 3rd element is port
             port = transport.lower().split(':')[2]
@@ -615,7 +615,7 @@ def __run_ssh_command(user, host, port, cmd):
     ssh_inv = ['ssh', '-o', 'PreferredAuthentications=publickey',
                '-o', 'PubkeyAuthentication=yes',
                '-o', 'StrictHostKeyChecking=yes', '-p', port, '-l',
-               user, host, cmd]
+               user, host, ' '.join(cmd)]
     return __run_command(ssh_inv)
 
 
