@@ -559,7 +559,7 @@ def clean_dest_snaps(dataset, transport, num_snaps):
         # ssh transport
         user, host = transport.lower().split(':')[1].split('@')
         port = 22
-        if transport.lower().split(':') > 2:
+        if len(transport.split(':')) > 2:
             # 3rd element is port
             port = transport.lower().split(':')[2]
         snaps = __snap_delete_format(__run_ssh_command(user, host, port,
