@@ -571,8 +571,8 @@ def clean_dest_snaps(dataset, transport, num_snaps):
                 __run_ssh_command(user, host, port, zfs_snap_delete)
             except subprocess.SubprocessError:
                 errors += 1
-            if errors > 0:
-                logging.warn("Encountered errors while deleting old snapshots"
+        if errors > 0:
+            logging.warn("Encountered errors while deleting old snapshots"
                          + "from destination: "+dataset+" via "
                          + transport)
     else:
