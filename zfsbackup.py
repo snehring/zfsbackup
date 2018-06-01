@@ -104,7 +104,7 @@ def main():
                     backup_dataset(name, ds.get('destinations'),
                                    incremental_name)
                     # Delete old snaps
-                    # TODO
+                    clean_dest_snaps(ds.get('destinations'), retain_snaps)
                 except ZFSBackupError:
                     logging.warn("Dataset backup of "+name+" to "
                                  + str(ds.get('destinations'))+" FAILED!"
@@ -542,12 +542,13 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
        param global_retain_snaps: number of snapshots that should be kept
        as defined by the retain_snaps global config param.
     """
-    # TODO
     for dest in destinations:
         dataset = dest.get('dest')
         transport = dest.get('transport')
         if dest.get('retain_snaps') is None and global_retain_snaps is None:
             # We're not deleting anything
+            logging.info("Not cleaning up snaps for: "+dataset
+                         + " via " +transport)
             return
         elif dest.get('retain_snaps') is None:
             num_snaps = global_retain_snaps
@@ -559,6 +560,8 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
             # local transport
             snaps = __snap_delete_format(__run_command(zfs_command), num_snaps)
             errors = 0
+            logging.info("Deleting "+str(len(snaps))+ " from "
+                         + dataset + " via " +transport)
             for snap in snaps:
                 try:
                     delete_snapshot(snap)
@@ -578,6 +581,8 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
             snaps = __snap_delete_format(__run_ssh_command(user, host, port,
                                          zfs_command), num_snaps)
             errors = 0
+            logging.info("Deleting "+str(len(snaps))+ " from "
+                         + dataset + " via " +transport)
             for snap in snaps:
                 zfs_snap_delete = ['zfs', 'destroy', snap]
                 try:
