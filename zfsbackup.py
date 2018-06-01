@@ -80,6 +80,7 @@ def main():
             lf_path = conf.get('lock_file')
         # TODO future: user selectable logging levels
         logging.getLogger().setLevel(logging.INFO)
+        retain_snaps = conf.get('retain_snaps')
         # create lockfile
         try:
             lf_fd = create_lockfile(lf_path)
@@ -102,6 +103,8 @@ def main():
                 try:
                     backup_dataset(name, ds.get('destinations'),
                                    incremental_name)
+                    # Delete old snaps
+                    # TODO
                 except ZFSBackupError:
                     logging.warn("Dataset backup of "+name+" to "
                                  + str(ds.get('destinations'))+" FAILED!"
@@ -532,52 +535,62 @@ def has_backuplast(dataset, inc_name):
     else:
         return False
 
-def clean_dest_snaps(dataset, transport, num_snaps):
+def clean_dest_snaps(destinations, global_retain_snaps=None):
     """
-       delete all but the last num_snaps snapshots from dataset via transport
-       param dataset: dataset to remove snapshots from
-       param transport: transport to use (same form as send_snapshot)
-       param num_snaps: number of snapshots that should be kept
+       delete all but the n snapshots from destinations per config
+       param destinations: list of destinations from config file
+       param global_retain_snaps: number of snapshots that should be kept
+       as defined by the retain_snaps global config param.
     """
     # TODO
-    zfs_command = ['zfs', 'list', '-H', '-r', '-t', 'snapshot',
-                   '-o', 'name', dataset]
-    if transport.lower() == 'local':
-        # local transport
-        snaps = __snap_delete_format(__run_command(zfs_command), num_snaps)
-        errors = 0
-        for snap in snaps:
-            try:
-                delete_snapshot(snap)
-            except ZFSBackupError:
-                errors += 1
-        if errors > 0:
-            logging.warn("Encountered errors while deleting old snapshots" 
-                         + "from destination: "+dataset+" via "
-                         + transport)
-    elif transport.lower().split(':')[0] == 'ssh':
-        # ssh transport
-        user, host = transport.lower().split(':')[1].split('@')
-        port = '22'
-        if len(transport.split(':')) > 2:
-            # 3rd element is port
-            port = transport.lower().split(':')[2]
-        snaps = __snap_delete_format(__run_ssh_command(user, host, port,
-                                     zfs_command), num_snaps)
-        errors = 0
-        for snap in snaps:
-            zfs_snap_delete = ['zfs', 'destroy', snap]
-            try:
-                __run_ssh_command(user, host, port, zfs_snap_delete)
-            except subprocess.SubprocessError:
-                errors += 1
-        if errors > 0:
-            logging.warn("Encountered errors while deleting old snapshots"
-                         + "from destination: "+dataset+" via "
-                         + transport)
-    else:
-        # unsupported transport
-        raise ZFSBackupError("Invalid transport: "+transport)
+    for dest in destinations:
+        dataset = dest.get('dest')
+        transport = dest.get('transport')
+        if dest.get('retain_snaps') is None and global_retain_snaps=None:
+            # We're not deleting anything
+            return
+        elif dest.get('retain_snaps') is None:
+            num_snaps = global_retain_snaps
+        else:
+            num_snaps = dest.get('retain_snaps')
+        zfs_command = ['zfs', 'list', '-H', '-r', '-t', 'snapshot',
+                       '-o', 'name', dataset]
+        if transport.lower() == 'local':
+            # local transport
+            snaps = __snap_delete_format(__run_command(zfs_command), num_snaps)
+            errors = 0
+            for snap in snaps:
+                try:
+                    delete_snapshot(snap)
+                except ZFSBackupError:
+                    errors += 1
+            if errors > 0:
+                logging.warn("Encountered errors while deleting old snapshots" 
+                             + "from destination: "+dataset+" via "
+                             + transport)
+        elif transport.lower().split(':')[0] == 'ssh':
+            # ssh transport
+            user, host = transport.lower().split(':')[1].split('@')
+            port = '22'
+            if len(transport.split(':')) > 2:
+                # 3rd element is port
+                port = transport.lower().split(':')[2]
+            snaps = __snap_delete_format(__run_ssh_command(user, host, port,
+                                         zfs_command), num_snaps)
+            errors = 0
+            for snap in snaps:
+                zfs_snap_delete = ['zfs', 'destroy', snap]
+                try:
+                    __run_ssh_command(user, host, port, zfs_snap_delete)
+                except subprocess.SubprocessError:
+                    errors += 1
+            if errors > 0:
+                logging.warn("Encountered errors while deleting old snapshots"
+                             + "from destination: "+dataset+" via "
+                             + transport)
+        else:
+            # unsupported transport
+            raise ZFSBackupError("Invalid transport: "+transport)
 
 
 def __snap_delete_format(snaps, nsave):

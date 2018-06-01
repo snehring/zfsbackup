@@ -339,7 +339,7 @@ class TestZFSBackup(unittest.TestCase):
         time.sleep(1)
         saved_last = zfsbackup.create_timestamp_snap(dataset)
         time.sleep(1)
-        zfsbackup.clean_dest_snaps(dataset, 'local', 2)
+        zfsbackup.clean_dest_snaps([{'dest': dataset, 'transport': 'local'}], 2)
         zfsbackup.verify_backup(saved_penultimate, dataset, 'local')
         zfsbackup.verify_backup(saved_last, dataset, 'local')
 
@@ -360,7 +360,7 @@ class TestZFSBackup(unittest.TestCase):
         time.sleep(1)
         saved_last = zfsbackup.create_timestamp_snap(dataset)
         time.sleep(1)
-        zfsbackup.clean_dest_snaps(dataset, 'ssh:root@localhost', 2)
+        zfsbackup.clean_dest_snaps([{'dest': dataset, 'transport': 'ssh:root@localhost'}], 2)
         zfsbackup.verify_backup(saved_penultimate, dataset, 'ssh:root@localhost')
         zfsbackup.verify_backup(saved_last, dataset, 'ssh:root@localhost')
 
