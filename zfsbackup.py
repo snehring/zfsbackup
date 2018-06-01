@@ -131,7 +131,17 @@ def validate_config(conf_path):
        are correct.
        :param conf_path: path to the config file
        :return: returns the validated yaml file as a python object"""
-    # TODO: verify perms of file
+    conf_stat = os.stat(conf_path)
+    # could open this up to only deny writable by others/group, but eh.
+    # I was going to enforce the file being owned by root, but that's a bit
+    # too restrictive probably. Verifying that it's owned by who's executing
+    # is probably sufficient.
+    if not (conf_stat.st_mode & 0o677 == 0o600
+            and conf_stat.st_uid == os.geteuid()):
+        # perms incorrect for config file
+        raise ZFSBackupError("Config file has incorrect permissions."
+                             + "Must be 600 and owned by the user "
+                             + "running the program.")
     with open(conf_path) as conf_f:
         try:
             conf = yaml.load(conf_f.read())
