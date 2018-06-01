@@ -136,8 +136,8 @@ def validate_config(conf_path):
     # I was going to enforce the file being owned by root, but that's a bit
     # too restrictive probably. Verifying that it's owned by who's executing
     # is probably sufficient.
-    if not (conf_stat.st_mode & 0o677 == 0o600
-            and conf_stat.st_uid == os.geteuid()):
+    if not (((conf_stat.st_mode & 0o677) == 0o600)
+            and (conf_stat.st_uid == os.geteuid())):
         # perms incorrect for config file
         raise ZFSBackupError("Config file has incorrect permissions."
                              + "Must be 600 and owned by the user "
