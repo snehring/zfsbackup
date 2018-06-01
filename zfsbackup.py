@@ -546,7 +546,7 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
     for dest in destinations:
         dataset = dest.get('dest')
         transport = dest.get('transport')
-        if dest.get('retain_snaps') is None and global_retain_snaps=None:
+        if dest.get('retain_snaps') is None and global_retain_snaps is None:
             # We're not deleting anything
             return
         elif dest.get('retain_snaps') is None:
