@@ -139,7 +139,7 @@ def validate_config(conf_path):
     if not (((conf_stat.st_mode & 0o677) == 0o600)
             and (conf_stat.st_uid == os.geteuid())):
         # perms incorrect for config file
-        raise ZFSBackupError("Config file has incorrect permissions."
+        raise ZFSBackupError("Config file has incorrect permissions. "
                              + "Must be 600 and owned by the user "
                              + "running the program.")
     with open(conf_path) as conf_f:
