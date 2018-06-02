@@ -151,13 +151,13 @@ def validate_config(conf_path):
             raise e
     if not conf.get('datasets'):
         raise ZFSBackupError("Error: no datasets defined, or defined incorrectly.")
-        for d in conf.get('datasets'):
-            if not d or not d.get('dataset_name') or not d.get('destinations'):
-                raise ZFSBackupError("Error: dataset config incorrectly defined.")
-            for l in d.get('destinations'):
-                if (not l) or (not l.get('dest')):
-                    ZFSBackupError("Error: destination config incorrectly "
-                                  + "defined for: "+d.get('dataset_name'))
+    for d in conf.get('datasets'):
+        if not d or not d.get('dataset_name') or not d.get('destinations'):
+            raise ZFSBackupError("Error: dataset config incorrectly defined.")
+        for l in d.get('destinations'):
+            if (not l) or (not l.get('dest')) or (not l.get('transport')):
+                ZFSBackupError("Error: destination config incorrectly "
+                               + "defined for: "+d.get('dataset_name'))
     return conf
 
 
