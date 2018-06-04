@@ -243,12 +243,8 @@ def verify_backup(snapshot, destination, transport):
                                  stdout=subprocess.DEVNULL)
             return True
         elif transport.lower().split(':')[0] == 'ssh':
-            port = '22'
-            if len(transport.split(':')) > 2:
-                # assume that the 3rd element is a port number
-                port = transport.split(':')[2]
             # TODO: make the ssh communication it's own function probably
-            username, hostname = transport.split(':')[1].split('@')
+            username, hostname, port = parse_ssh_transport(transport)
             zfs = "zfs list -H -t snapshot -o name "+destination+snapshot
             ssh_command = ['ssh', '-o', 'PreferredAuthentications=publickey',
                            '-o', 'PubkeyAuthentication=yes',
@@ -573,11 +569,7 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
                              + transport)
         elif transport.lower().split(':')[0] == 'ssh':
             # ssh transport
-            user, host = transport.lower().split(':')[1].split('@')
-            port = '22'
-            if len(transport.split(':')) > 2:
-                # 3rd element is port
-                port = transport.lower().split(':')[2]
+            user, host, port  = parse_ssh_transport(transport)
             snaps = __snap_delete_format(__run_ssh_command(user, host, port,
                                          zfs_command), num_snaps)
             errors = 0
@@ -688,6 +680,21 @@ def __cleanup_stdout(stdout):
        returns: list of lines from stdout
     """
     return list(filter(None, stdout.split('\n')))
+
+
+def parse_ssh_transport(transport):
+    """
+       Parse an ssh transport for user, host and port
+       param transport: ssh transport string
+       returns: list of user, host, and port
+    """
+    user, host = transport.lower().split(':')[1].split('@')
+    if len(transport.split(':')) > 2:
+        # 3rd element is port
+        port = transport.lower().split(':')[2]
+    else:
+        port = '22'
+    return [user, host, port]
 
 
 class ZFSBackupError(Exception):
