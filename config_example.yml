@@ -3,6 +3,7 @@
 # maybe an ssh key could go in here
 log_file: "./zfsbackup.log"
 lock_file: "./zfsbackup.lock"
+retain_snaps: 4
 # dataset config
 datasets:
   -
@@ -11,6 +12,7 @@ datasets:
     -
       dest: "store/backup/test_set"
       transport: "local"
+      retain_snaps: 5
   -
     dataset_name: "store/testing/test_set2"
     destinations:

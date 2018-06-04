@@ -80,6 +80,7 @@ def main():
             lf_path = conf.get('lock_file')
         # TODO future: user selectable logging levels
         logging.getLogger().setLevel(logging.INFO)
+        retain_snaps = conf.get('retain_snaps')
         # create lockfile
         try:
             lf_fd = create_lockfile(lf_path)
@@ -102,6 +103,8 @@ def main():
                 try:
                     backup_dataset(name, ds.get('destinations'),
                                    incremental_name)
+                    # Delete old snaps
+                    clean_dest_snaps(ds.get('destinations'), retain_snaps)
                 except ZFSBackupError:
                     logging.warn("Dataset backup of "+name+" to "
                                  + str(ds.get('destinations'))+" FAILED!"
@@ -250,12 +253,8 @@ def verify_backup(snapshot, destination, transport):
                                  stdout=subprocess.DEVNULL)
             return True
         elif transport.lower().split(':')[0] == 'ssh':
-            port = '22'
-            if len(transport.split(':')) > 2:
-                # assume that the 3rd element is a port number
-                port = transport.split(':')[2]
             # TODO: make the ssh communication it's own function probably
-            username, hostname = transport.split(':')[1].split('@')
+            username, hostname, port = parse_ssh_transport(transport)
             zfs = "zfs list -H -t snapshot -o name "+destination+snapshot
             ssh_command = ['ssh', '-o', 'PreferredAuthentications=publickey',
                            '-o', 'PubkeyAuthentication=yes',
@@ -542,6 +541,103 @@ def has_backuplast(dataset, inc_name):
     else:
         return False
 
+def clean_dest_snaps(destinations, global_retain_snaps=None):
+    """
+       delete all but the n snapshots from destinations per config
+       param destinations: list of destinations from config file
+       param global_retain_snaps: number of snapshots that should be kept
+       as defined by the retain_snaps global config param.
+    """
+    for dest in destinations:
+        dataset = dest.get('dest')
+        transport = dest.get('transport')
+        if dest.get('retain_snaps') is None and global_retain_snaps is None:
+            # We're not deleting anything
+            logging.info("Not cleaning up snaps for: "+dataset
+                         + " via " +transport)
+            return
+        elif dest.get('retain_snaps') is None:
+            num_snaps = global_retain_snaps
+        else:
+            num_snaps = dest.get('retain_snaps')
+        zfs_command = ['zfs', 'list', '-H', '-r', '-t', 'snapshot',
+                       '-o', 'name', dataset]
+        if transport.lower() == 'local':
+            # local transport
+            snaps = __snap_delete_format(__run_command(zfs_command), num_snaps)
+            errors = 0
+            logging.info("Deleting "+str(len(snaps))+ " from "
+                         + dataset + " via " +transport)
+            for snap in snaps:
+                try:
+                    delete_snapshot(snap)
+                except ZFSBackupError:
+                    errors += 1
+            if errors > 0:
+                logging.warn("Encountered errors while deleting old snapshots" 
+                             + "from destination: "+dataset+" via "
+                             + transport)
+        elif transport.lower().split(':')[0] == 'ssh':
+            # ssh transport
+            user, host, port  = parse_ssh_transport(transport)
+            snaps = __snap_delete_format(__run_ssh_command(user, host, port,
+                                         zfs_command), num_snaps)
+            errors = 0
+            logging.info("Deleting "+str(len(snaps))+ " from "
+                         + dataset + " via " +transport)
+            for snap in snaps:
+                zfs_snap_delete = ['zfs', 'destroy', snap]
+                try:
+                    __run_ssh_command(user, host, port, zfs_snap_delete)
+                except subprocess.SubprocessError:
+                    errors += 1
+            if errors > 0:
+                logging.warn("Encountered errors while deleting old snapshots"
+                             + "from destination: "+dataset+" via "
+                             + transport)
+        else:
+            # unsupported transport
+            raise ZFSBackupError("Invalid transport: "+transport)
+
+
+def __snap_delete_format(snaps, nsave):
+    """
+       sort the list of snaps and pair down to those we want to delete
+       filters the list for the snap format we have
+       param snaps: list of snaps
+       param nsave: number of snaps to save
+    """
+    regex = re.compile(".*@zfsbackup-\d{8}-\d{6}")
+    matches = list(filter(regex.match, snaps))
+    return sorted(matches)[:len(matches)-nsave]
+
+
+def __run_command(command):
+    """
+       run a command
+       param command: command to run
+       returns: the stdout returned from command as a list
+    """
+    cmd = subprocess.run(command, stdout=subprocess.PIPE, check=True,
+                         encoding='utf8', timeout=60)
+    return __cleanup_stdout(cmd.stdout)
+
+
+def __run_ssh_command(user, host, port, cmd):
+    """
+       do a command via ssh
+       param user: username to run as
+       param host: host to run on
+       param ssh_args: arguments to ssh
+       param cmd: command to run
+       returns: the stdout of the command
+    """
+    ssh_inv = ['ssh', '-o', 'PreferredAuthentications=publickey',
+               '-o', 'PubkeyAuthentication=yes',
+               '-o', 'StrictHostKeyChecking=yes', '-p', port, '-l',
+               user, host, ' '.join(cmd)]
+    return __run_command(ssh_inv)
+
 
 def create_lockfile(path):
     """Atomically create a lockfile
@@ -594,6 +690,21 @@ def __cleanup_stdout(stdout):
        returns: list of lines from stdout
     """
     return list(filter(None, stdout.split('\n')))
+
+
+def parse_ssh_transport(transport):
+    """
+       Parse an ssh transport for user, host and port
+       param transport: ssh transport string
+       returns: list of user, host, and port
+    """
+    user, host = transport.lower().split(':')[1].split('@')
+    if len(transport.split(':')) > 2:
+        # 3rd element is port
+        port = transport.lower().split(':')[2]
+    else:
+        port = '22'
+    return [user, host, port]
 
 
 class ZFSBackupError(Exception):
