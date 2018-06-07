@@ -609,6 +609,8 @@ def __snap_delete_format(snaps, nsave):
     """
     regex = re.compile(".*@zfsbackup-\d{8}-\d{6}")
     matches = list(filter(regex.match, snaps))
+    if len(matches) < nsave:
+        return []
     return sorted(matches)[:len(matches)-nsave]
 
 
