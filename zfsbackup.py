@@ -108,7 +108,7 @@ def main():
                 except ZFSBackupError:
                     logging.warn("Dataset backup of "+name+" to "
                                  + str(ds.get('destinations'))+" FAILED!"
-                                 + "YOU'LL WANT TO SEE TO THAT!")
+                                 + " YOU'LL WANT TO SEE TO THAT!")
                     errors += 1
     elif not args.config:
         # config file not provided
@@ -248,7 +248,7 @@ def verify_backup(snapshot, destination, transport):
         if transport == 'local':
             zfs_command = ['zfs', 'list', '-H', '-t', 'snapshot',
                            '-o', 'name', destination+snapshot]
-            zfs = subprocess.run(zfs_command, check=True, timeout=10,
+            zfs = subprocess.run(zfs_command, check=True, timeout=60,
                                  encoding='utf-8', stderr=subprocess.DEVNULL,
                                  stdout=subprocess.DEVNULL)
             return True
@@ -260,7 +260,7 @@ def verify_backup(snapshot, destination, transport):
                            '-o', 'PubkeyAuthentication=yes',
                            '-o', 'StrictHostKeyChecking=yes', '-p', port, '-l',
                            username, hostname, zfs]
-            ssh = subprocess.run(ssh_command, check=True, timeout=10,
+            ssh = subprocess.run(ssh_command, check=True, timeout=60,
                                  encoding='utf-8', stderr=subprocess.DEVNULL,
                                  stdout=subprocess.DEVNULL)
             return True
@@ -281,7 +281,7 @@ def create_snapshot(dataset, name):
        throws: ZFSBackupError if snapshot fails
        """
     try:
-        zfs = subprocess.run(['zfs', 'snap', dataset+'@'+name], timeout=30,
+        zfs = subprocess.run(['zfs', 'snap', dataset+'@'+name], timeout=60,
                              stderr=subprocess.PIPE, check=True,
                              encoding='utf-8')
     except CalledProcessError as e:
@@ -319,7 +319,7 @@ def delete_snapshot(snapshot):
         raise ZFSBackupError(
             "Tried to delete something other than a snapshot. Was: "+snapshot)
     try:
-        zfs = subprocess.run(['zfs', 'destroy', snapshot], timeout=120,
+        zfs = subprocess.run(['zfs', 'destroy', snapshot], timeout=180,
                              stderr=subprocess.PIPE, check=True,
                              encoding='utf-8')
     except CalledProcessError as e:
@@ -341,7 +341,7 @@ def rename_dataset(dataset, newname):
     """
     try:
         zfs = subprocess.run(['zfs', 'rename', dataset, newname],
-                             stderr=subprocess.PIPE, check=True, timeout=30,
+                             stderr=subprocess.PIPE, check=True, timeout=60,
                              encoding='utf-8')
     except CalledProcessError as e:
         # command returned non-zero error code
@@ -511,7 +511,7 @@ def get_snapshots(dataset):
     try:
         zfs = subprocess.run(['zfs', 'list', '-H', '-r', '-t', 'snapshot',
                               '-o', 'name', dataset], stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE, check=True, timeout=10,
+                             stderr=subprocess.PIPE, check=True, timeout=60,
                              encoding='utf-8')
         # remove empty lines and return a list with the contents of stdout
         snaps = __cleanup_stdout(zfs.stdout)
