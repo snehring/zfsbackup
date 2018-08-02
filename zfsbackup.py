@@ -566,7 +566,13 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
                        '-o', 'name', dataset]
         if transport.lower() == 'local':
             # local transport
-            snaps = __snap_delete_format(__run_command(zfs_command), num_snaps)
+            try:
+                snaps = __snap_delete_format(__run_command(zfs_command), num_snaps)
+            except subprocess.SubprocessError:
+                logging.warn("Unable to get list of snapshots to delete from "
+                             + dataset + " via " + transport + ". Aborting "
+                             + "deletion.")
+                return
             errors = 0
             logging.info("Deleting "+str(len(snaps))+ " from "
                          + dataset + " via " +transport)
@@ -582,8 +588,14 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
         elif transport.lower().split(':')[0] == 'ssh':
             # ssh transport
             user, host, port  = parse_ssh_transport(transport)
-            snaps = __snap_delete_format(__run_ssh_command(user, host, port,
-                                         zfs_command), num_snaps)
+            try:
+                snaps = __snap_delete_format(__run_ssh_command(user, host, port,
+                                             zfs_command), num_snaps)
+            except subprocess.SubprocessError:
+                logging.warn("Unable to get list of snapshots to delete from "
+                             + dataset + " via " + transport + ". Aborting "
+                             + "deletion.")
+                return
             errors = 0
             logging.info("Deleting "+str(len(snaps))+ " from "
                          + dataset + " via " +transport)
