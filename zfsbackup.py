@@ -75,7 +75,9 @@ def main():
             # set log file
             # if the path is invalid or not writable I bet this'll complain
             # and that's fine, I'd percolate up any exception anyway
-            logging.basicConfig(filename=conf.get('log_file'))
+            logging.basicConfig(filename=conf.get('log_file'),
+                                format='%(asctime)s (%(levelname)s) %(message)s',
+                                datefmt='%Y-%m-%dT%H:%M:%S')
         if conf.get('lock_file'):
             lf_path = conf.get('lock_file')
         # TODO future: user selectable logging levels
