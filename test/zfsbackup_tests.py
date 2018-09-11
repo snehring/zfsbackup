@@ -96,6 +96,10 @@ class TestZFSBackup(unittest.TestCase):
         self.assertFalse(zfsbackup.has_stragglers(dataset))
         self.assertTrue(zfsbackup.has_stragglers(nope))
 
+    def testHasStragglersFail(self):
+        dataset = self.base_dataset+'/doesnotexist'
+        self.assertRaises(ZFSBackupError, zfsbackup.has_stragglers, dataset)
+
     def testRenameSnapshot(self):
         dataset = self.base_dataset+'/'+self.source_dataset
         to_rename = dataset+'@zfsbackup-rename'

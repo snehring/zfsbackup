@@ -51,7 +51,14 @@ def main():
         dest = args.destination
         transport = args.transport
         dests = [{'dest': dest, 'transport': transport}]
-        if has_stragglers(name):
+        try:
+            stragglers = has_stragglers(name)
+        except ZFSBackupError:
+            logging.warn("Unable to get list of existing snapshots for "
+                         + "dataset: "+name+". IT WAS NOT BACKED UP!")
+            errors += 1
+
+        if stragglers:
             logging.warn("Dataset: "+name+" has left over temporary "
                          + "snapshots. IT WAS NOT BACKED UP! You need "
                          + "to resolve this manually. Make sure everything "
@@ -93,7 +100,14 @@ def main():
             # for each dataset check stragglers
             # if none, backup
             name = ds.get('dataset_name')
-            if has_stragglers(name):
+            try:
+                stragglers = has_stragglers(name)
+            except ZFSBackupError:
+                logging.warn("Unable to get list of existing snapshots for "
+                         + "dataset: "+name+". IT WAS NOT BACKED UP!")
+                errors += 1
+                continue
+            if stragglers:
                 logging.warn("Dataset: "+name+" has left over temporary "
                              + "snapshots. IT WAS NOT BACKED UP! You need "
                              + "to resolve this manually. Make sure "
