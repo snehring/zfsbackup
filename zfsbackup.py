@@ -163,7 +163,7 @@ def validate_config(conf_path):
                              + "running the program.")
     with open(conf_path) as conf_f:
         try:
-            conf = yaml.load(conf_f.read())
+            conf = yaml.safe_load(conf_f.read())
         except yaml.YAMLError as e:
             # parsing error
             logging.error("Invalid config file.")
