@@ -54,12 +54,12 @@ def main():
         try:
             stragglers = has_stragglers(name)
         except ZFSBackupError:
-            logging.warn("Unable to get list of existing snapshots for "
+            logging.warning("Unable to get list of existing snapshots for "
                          + "dataset: "+name+". IT WAS NOT BACKED UP!")
             errors += 1
 
         if stragglers:
-            logging.warn("Dataset: "+name+" has left over temporary "
+            logging.warning("Dataset: "+name+" has left over temporary "
                          + "snapshots. IT WAS NOT BACKED UP! You need "
                          + "to resolve this manually. Make sure everything "
                          + "is consistent and remove the left over "
@@ -69,7 +69,7 @@ def main():
             try:
                 backup_dataset(name, dests, incremental_name)
             except ZFSBackupError:
-                logging.warn("Dataset backup of "+name+" to "+dest
+                logging.warning("Dataset backup of "+name+" to "+dest
                              + "FAILED! YOU'LL WANT TO SEE TO THAT!")
                 errors += 1
     elif args.config:
@@ -103,12 +103,12 @@ def main():
             try:
                 stragglers = has_stragglers(name)
             except ZFSBackupError:
-                logging.warn("Unable to get list of existing snapshots for "
+                logging.warning("Unable to get list of existing snapshots for "
                          + "dataset: "+name+". IT WAS NOT BACKED UP!")
                 errors += 1
                 continue
             if stragglers:
-                logging.warn("Dataset: "+name+" has left over temporary "
+                logging.warning("Dataset: "+name+" has left over temporary "
                              + "snapshots. IT WAS NOT BACKED UP! You need "
                              + "to resolve this manually. Make sure "
                              + "everything is consistent and remove "
@@ -122,7 +122,7 @@ def main():
                     # Delete old snaps
                     clean_dest_snaps(ds.get('destinations'), retain_snaps)
                 except ZFSBackupError:
-                    logging.warn("Dataset backup of "+name+" to "
+                    logging.warning("Dataset backup of "+name+" to "
                                  + str(ds.get('destinations'))+" FAILED!"
                                  + " YOU'LL WANT TO SEE TO THAT!")
                     errors += 1
@@ -583,7 +583,7 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
             try:
                 snaps = __snap_delete_format(__run_command(zfs_command), num_snaps)
             except subprocess.SubprocessError:
-                logging.warn("Unable to get list of snapshots to delete from "
+                logging.warning("Unable to get list of snapshots to delete from "
                              + dataset + " via " + transport + ". Aborting "
                              + "deletion.")
                 return
@@ -596,7 +596,7 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
                 except ZFSBackupError:
                     errors += 1
             if errors > 0:
-                logging.warn("Encountered errors while deleting old snapshots" 
+                logging.warning("Encountered errors while deleting old snapshots" 
                              + "from destination: "+dataset+" via "
                              + transport)
         elif transport.lower().split(':')[0] == 'ssh':
@@ -606,7 +606,7 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
                 snaps = __snap_delete_format(__run_ssh_command(user, host, port,
                                              zfs_command), num_snaps)
             except subprocess.SubprocessError:
-                logging.warn("Unable to get list of snapshots to delete from "
+                logging.warning("Unable to get list of snapshots to delete from "
                              + dataset + " via " + transport + ". Aborting "
                              + "deletion.")
                 return
@@ -620,7 +620,7 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
                 except subprocess.SubprocessError:
                     errors += 1
             if errors > 0:
-                logging.warn("Encountered errors while deleting old snapshots"
+                logging.warning("Encountered errors while deleting old snapshots"
                              + "from destination: "+dataset+" via "
                              + transport)
         else:
