@@ -525,8 +525,9 @@ def get_snapshots(dataset):
     """
     # get list of snapshots
     try:
-        zfs = subprocess.run(['zfs', 'list', '-H', '-t', 'snapshot',
-                              '-o', 'name', dataset], stdout=subprocess.PIPE,
+        zfs_command = ['zfs', 'list', '-H', '-t', 'snapshot', '-d', '1',
+                       '-o', 'name', dataset]
+        zfs = subprocess.run(zfs_command, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, check=True, timeout=60,
                              encoding='utf-8')
         # remove empty lines and return a list with the contents of stdout
@@ -576,7 +577,7 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
             num_snaps = global_retain_snaps
         else:
             num_snaps = dest.get('retain_snaps')
-        zfs_command = ['zfs', 'list', '-H', '-t', 'snapshot',
+        zfs_command = ['zfs', 'list', '-H', '-t', 'snapshot', '-d', '1',
                        '-o', 'name', dataset]
         if transport.lower() == 'local':
             # local transport
