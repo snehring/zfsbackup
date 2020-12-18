@@ -401,6 +401,12 @@ def send_snapshot(snapshot, destination, transport='local',
     param incremental_source: snapshot to use as the incremental source
     throws: ZFSBackup error if send fails, or snapshot params aren't snapshots
     """
+    send_flags = '-ec'
+    recv_flags = '-F'
+    if is_encrypted_dataset(snapshot):
+        send_flags = '-w'
+        recv_flags = ''
+
     if '@' not in snapshot:
         raise ZFSBackupError("Error: tried to send non snapshot "+snapshot)
     if incremental_source:
@@ -408,11 +414,11 @@ def send_snapshot(snapshot, destination, transport='local',
             raise ZFSBackupError("incremental_source not a snapshot. snap: "
                                  + snapshot+" dest: "+destination
                                  + " inc_source: "+incremental_source)
-        zsend_command = ['zfs', 'send', '-ec', '-i', incremental_source,
+        zsend_command = ['zfs', 'send', send_flags, '-i', incremental_source,
                          snapshot]
     else:
-        zsend_command = ['zfs', 'send', '-ec', snapshot]
-    zrecv_command = ['zfs', 'recv', '-F', destination]
+        zsend_command = ['zfs', 'send', send_flags, snapshot]
+    zrecv_command = ['zfs', 'recv', recv_flags, destination]
     if transport.lower() == 'local':
         with run('zfs send', zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as zfs_send:
             with run('zfs recv', zrecv_command, stdin=zfs_send.stdout, stderr=subprocess.PIPE) as zfs_recv:
@@ -440,7 +446,7 @@ def send_snapshot(snapshot, destination, transport='local',
         with run('zfs send', zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as zfs_send:
             # TODO: have a configurable for ssh-key instead of just assuming
             username, hostname = transport.split(':')[1].split('@')
-            ssh_remote_command = "zfs recv -F "+destination
+            ssh_remote_command = "zfs recv "+recv_flags+" "+destination
             ssh_command = ['ssh', '-o', 'PreferredAuthentications=publickey',
                            '-o', 'PubkeyAuthentication=yes',
                            '-o', 'StrictHostKeyChecking=yes', '-p', port, '-l',
@@ -543,6 +549,25 @@ def get_snapshots(dataset):
         # command timed out
         raise ZFSBackupError("Unable to get list of snapshots for "
                       + dataset+". Timeout reached.")
+
+def is_encrypted_dataset(dataset):
+    """ Returns true if the dataset is encrypted, false otherwise
+      param dataset: dataset to check
+      returns: true if encrypted, false otherwise
+      throws ZFSBackupError if it can't figure it out
+    """
+    try:
+        zfs_command = ['zfs', 'get', '-H', '-d', '0', 'encryption', dataset]
+        results = __run_command(zfs_command)[0].split('\t')
+        return results[0] == dataset and results[1] == "encryption" and results[2] != "off"
+    except CalledProcessError as e:
+        logging.error("Unable to determine if dataset " + dataset
+                      + " is encrypted or not.")
+        logging.error("Got: "+str(__cleanup_stdout(e.stderr)))
+        raise ZFSBackupError("Unable to determine encryption status for "+dataset)
+    except TimeoutExpired:
+        raise ZFSBackupError("Unable to get encryption status for "+dataset+
+                             + ". Timeout reached.")
 
 
 def has_backuplast(dataset, inc_name):
