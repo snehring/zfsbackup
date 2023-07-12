@@ -765,7 +765,7 @@ def __cleanup_stdout(stdout):
     return list(filter(None, stdout.split('\n')))
 
 def get_transport_type(transport):
-    return transport if transport == "local" else transport.lower().split(':')[0]
+    return transport.lower() if transport.lower() == "local" else transport.lower().split(':')[0]
 
 def parse_ssh_transport(transport):
     """
