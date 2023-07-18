@@ -198,7 +198,7 @@ def backup_dataset(dataset, destinations, inc_snap):
                 # if we're doing ssh and the connection fails abort to avoid nuisance snapshot cleanup.
                 username, hostname, port = parse_ssh_transport(transport)
                 try:
-                    __run_ssh_command(username, hostname, port, "zfs --version")
+                    __run_ssh_command(username, hostname, port, ["zfs", "--version"])
                 except CalledProcessError as e:
                     raise ZFSBackupError("Error: Test connection to "+transport+" failed. Aborting.")
                 except TimeoutExpired as e:
@@ -762,7 +762,10 @@ def __cleanup_stdout(stdout):
        param stdout: string output of subprocess stdout
        returns: list of lines from stdout
     """
-    return list(filter(None, stdout.split('\n')))
+    if stdout is None:
+        return ["No output"]
+    else:
+        return list(filter(None, stdout.split('\n')))
 
 def get_transport_type(transport):
     return transport.lower() if transport.lower() == "local" else transport.lower().split(':')[0]
