@@ -4,17 +4,17 @@ lock_file: "./zfsbackup.lock"
 # dataset config
 datasets:
   -
-    dataset_name: "store/zfs_backup_test/source"
+    dataset_name: "trash/zfs_backup_test/source"
     destinations: 
     -
-      dest: "store/zfs_backup_test/destination"
+      dest: "trash/zfs_backup_test/destination"
       transport: "local"
   -
-    dataset_name: "store/zfs_backup_test/source2"
+    dataset_name: "trash/zfs_backup_test/source2"
     destinations:
       - 
-        dest: "store/zfs_backup_test/destination2_ssh"
+        dest: "trash/zfs_backup_test/destination2_ssh"
         transport: "ssh:root@localhost"
       - 
-        dest: "store/zfs_backup_test/destination2_local"
+        dest: "trash/zfs_backup_test/destination2_local"
         transport: "local"

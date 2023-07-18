@@ -22,16 +22,16 @@ class TestZFSBackup(unittest.TestCase):
     # this is the base dataset we will be testing in, it will be created
     # assumed that no one will care if we destroy everything in it
     # please adjust here and in test-setup.sh/test-teardown.sh
-    base_dataset = "store/zfs_backup_test"
+    base_dataset = "trash/zfs_backup_test"
     source_dataset = "source"
     other_dataset = "other"
     dest_dataset = "destination"
 
     def setUp(self):
-        subprocess.run(['./test-setup.sh'],timeout=5)
+        subprocess.run(['./test-setup.sh'],timeout=30)
 
     def tearDown(self):
-        subprocess.run(['./test-teardown.sh'],timeout=5)
+        subprocess.run(['./test-teardown.sh'],timeout=30)
 
     def testLockfileCreation(self):
         fd = zfsbackup.create_lockfile("./testing")
@@ -137,7 +137,7 @@ class TestZFSBackup(unittest.TestCase):
             self.assertFalse(snapshot in snaps)
             return
         self.assertTrue(False)
-    
+
     def testSendSnapshotSSH(self):
         dataset = self.base_dataset+'/'+self.source_dataset
         snapshot = dataset+'@zfsbackup-sendtest'
@@ -231,6 +231,14 @@ class TestZFSBackup(unittest.TestCase):
         except ZFSBackupError as e:
             self.fail("caught exception "+e.message)
 
+    def testBackupDatasetBadConnection(self):
+        dataset = self.base_dataset+"/"+self.source_dataset
+        dest = [{'dest':self.base_dataset+'/'+self.dest_dataset,'transport':'ssh:root@localhost:23'}]
+        with self.assertRaises(ZFSBackupError):
+            zfsbackup.backup_dataset(dataset,dest,'@zfsbackup-connection-fail-test')
+        snaps = zfsbackup.get_snapshots(dest[0].get("dest"))
+        self.assertFalse(len([s for s in snaps if s.split("@")[1].startswith("zfsbackup-connection-fail-test")]) > 0)
+        
     def testBackupDatasetSSH(self):
         dataset = self.base_dataset+'/'+self.source_dataset
         dest = [{'dest':self.base_dataset+'/'+self.dest_dataset,'transport':'ssh:root@localhost'}]
