@@ -427,18 +427,28 @@ def send_snapshot(snapshot, destination, transport='local',
     if is_encrypted_dataset(snapshot):
         send_flags = '-w'
         recv_flags = ''
+    elif get_transport_type(transport) == "ssh":
+        send_flags = ""
 
     if '@' not in snapshot:
         raise ZFSBackupError("Error: tried to send non snapshot "+snapshot)
+    
     if incremental_source:
         if '@' not in incremental_source:
             raise ZFSBackupError("incremental_source not a snapshot. snap: "
                                  + snapshot+" dest: "+destination
                                  + " inc_source: "+incremental_source)
-        zsend_command = ['zfs', 'send', send_flags, '-i', incremental_source,
+        if not send_flags:
+            zsend_command = ["zfs", "send", "-i", incremental_source, snapshot]
+        else:
+            zsend_command = ['zfs', 'send', send_flags, '-i', incremental_source,
                          snapshot]
     else:
-        zsend_command = ['zfs', 'send', send_flags, snapshot]
+        if not send_flags:
+            zsend_command = ["zfs", "send", snapshot]
+        else:
+            zsend_command = ['zfs', 'send', send_flags, snapshot]
+
     zrecv_command = ['zfs', 'recv', recv_flags, destination]
     if get_transport_type(transport) == 'local':
         with run('zfs send', zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as zfs_send:
@@ -460,7 +470,6 @@ def send_snapshot(snapshot, destination, transport='local',
                              + transport.lower()+"> to "+destination)
                              
     elif get_transport_type(transport) == "ssh":
-        zsend_command = ["zfs", "send", snapshot]
         username, hostname, port = parse_ssh_transport(transport)
         with run('zfs send', zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as zfs_send:
             # TODO: have a configurable for ssh-key instead of just assuming
@@ -469,16 +478,23 @@ def send_snapshot(snapshot, destination, transport='local',
                            '-o', 'PubkeyAuthentication=yes',
                            '-o', 'StrictHostKeyChecking=yes', '-p', port, '-l',
                            username, hostname, ssh_remote_command]
-            lz4_command = ["lz4"]
-            with run("lz4 pipe", lz4_command, stdin=zfs_send.stdout, stderr=subprocess.PIPE) as lz4:
+            with run("lz4 pipe", ["lz4"], stdin=zfs_send.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as lz4:
                 with run('ssh recv', ssh_command, stdin=lz4.stdout, stderr=subprocess.PIPE) as ssh_recv:
                     try:
                         ssh_recv.wait()
                         if ssh_recv.returncode != 0:
+                            lz4.kill()
+                            lz4.wait()
                             zfs_send.kill()
                             zfs_send.wait()
                             raise ZFSBackupError("ssh recv of "+snapshot+" to "
                                                 + destination+" failed.")
+                        
+                        lz4.wait()
+                        if lz4.returncode != 0:
+                            zfs_send.kill()
+                            zfs_send.wait()
+                            raise ZFSBackupError(f"ssh send of {snapshot} to {destination} failed. lz4 errors: {lz4.stderr.read}")
 
                         zfs_send.wait()
                         if zfs_send.returncode != 0:
