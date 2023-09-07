@@ -10,6 +10,8 @@ import re
 import os
 import sys
 from datetime import datetime
+import time
+import random
 import yaml
 
 
@@ -145,6 +147,9 @@ def main():
 
 
 def do_parallel_send(dataset: dict, incremental_name: str, retain_snaps: int):
+    # sleep randomly before we get started
+    time.sleep(random.randrange(1, 16))
+    
     name = dataset.get("dataset_name")
     try:
         stragglers = has_stragglers(name)
