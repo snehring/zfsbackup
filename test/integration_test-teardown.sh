@@ -1,3 +1,3 @@
 #!/usr/bin/bash
-
-zfs destroy -r store/zfs_backup_test
+POOL=trash
+zfs destroy -r ${POOL}/zfs_backup_test
