@@ -1,3 +1,3 @@
 #!/usr/bin/bash
-POOL=trash
+POOL=archive/testing
 zfs destroy -r ${POOL}/zfs_backup_test

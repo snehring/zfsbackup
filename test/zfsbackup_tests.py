@@ -22,7 +22,7 @@ class TestZFSBackup(unittest.TestCase):
     # this is the base dataset we will be testing in, it will be created
     # assumed that no one will care if we destroy everything in it
     # please adjust here and in test-setup.sh/test-teardown.sh
-    base_dataset = "trash/zfs_backup_test"
+    base_dataset = "archive/testing/zfs_backup_test"
     source_dataset = "source"
     other_dataset = "other"
     dest_dataset = "destination"
