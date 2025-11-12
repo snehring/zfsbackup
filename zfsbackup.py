@@ -66,22 +66,13 @@ def main():
             stragglers = has_stragglers(name)
         except ZFSBackupError:
             logging.warning(
-                "Unable to get list of existing snapshots for "
-                + "dataset: "
-                + name
-                + ". IT WAS NOT BACKED UP!"
+                f"Unable to get list of existing snapshots for dataset: {name}. IT WAS NOT BACKED UP!"
             )
             errors += 1
 
         if stragglers:
             logging.warning(
-                "Dataset: "
-                + name
-                + " has left over temporary "
-                + "snapshots. IT WAS NOT BACKED UP! You need "
-                + "to resolve this manually. Make sure everything "
-                + "is consistent and remove the left over "
-                + "zfsbackup-yyymmdd-hhmm snaps."
+                f"Dataset: {name} has left over temporary snapshots. IT WAS NOT BACKED UP! You need to resolve this manually. Make sure everything is consistent and then remove/rename the temporary zfsbackup-yyyymmdd-hhmm snaps."
             )
             return -1
         else:
@@ -89,17 +80,13 @@ def main():
                 backup_dataset(name, dests, incremental_name)
             except ZFSBackupError:
                 logging.warning(
-                    "Dataset backup of "
-                    + name
-                    + " to "
-                    + dest
-                    + "FAILED! YOU'LL WANT TO SEE TO THAT!"
+                    f"Dataset backup of {name} to {dest} FAILED! YOU'LL WANT TO SEE TO THAT!"
                 )
                 errors += 1
     elif args.config:
         # config run
         if not os.path.exists(args.config):
-            logging.error("Exiting: Cannot find config file at " + args.config)
+            logging.error(f"Exiting: Cannot find config file at {args.config}")
             return -1
         conf = validate_config(args.config)
         if conf.get("log_file"):
