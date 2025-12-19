@@ -24,6 +24,7 @@ class TestZFSBackup(unittest.TestCase):
     # please adjust here and in test-setup.sh/test-teardown.sh
     base_dataset = "archive/testing/zfs_backup_test"
     source_dataset = "source"
+    second_source_dataset = "second"
     other_dataset = "other"
     dest_dataset = "destination"
 
@@ -312,6 +313,15 @@ class TestZFSBackup(unittest.TestCase):
         except ZFSBackupError:
             return
         self.fail("Should have caught an exception")
+
+    def testSendMultipleBadDest(self):
+        retain_snaps = 2
+        incremental_name = "@zfsbackup-last"
+        datasets = [{"dataset_name": f"{self.base_dataset}/{self.source_dataset}", "destinations": [{"dest":f"{self.base_dataset}/non-existent-dataset/butreally","transport":"ssh:root@localhost"}]}, {"dataset_name": f"{self.base_dataset}/{self.second_source_dataset}", "destinations": [{"dest":f"{self.base_dataset}/non-existent-dataset/noreally", "transport":"ssh:root@localhost"}]}]
+        results = zfsbackup.parallel_process_backup(2, datasets, incremental_name, retain_snaps)
+        self.assertTrue(len(results)==2)
+        for result in results:
+            self.assertIsInstance(result, ZFSBackupError)
 
     def testSendSnapshotBadSrc(self):
         dataset = self.base_dataset+'/deffo-real'

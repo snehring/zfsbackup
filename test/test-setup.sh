@@ -2,6 +2,7 @@
 POOL=archive/testing
 zfs create ${POOL}/zfs_backup_test
 zfs create ${POOL}/zfs_backup_test/source
+zfs create ${POOL}/zfs_backup_test/second
 sudo chown -R ${USER} /${POOL}/zfs_backup_test/source
 zfs create ${POOL}/zfs_backup_test/other
 zfs create ${POOL}/zfs_backup_test/destination

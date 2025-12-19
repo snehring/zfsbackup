@@ -14,6 +14,7 @@ from datetime import datetime
 import time
 import random
 import yaml
+import shutil
 
 
 def main():
@@ -45,6 +46,7 @@ def main():
     lf_path = "/var/lock/zfsbackup.lock"
     # TODO: make this user customizable
     incremental_name = "@zfsbackup-last"
+    parallel_sends = 2
     # error counter
     errors = 0
     if args.dataset or args.destination:
@@ -109,12 +111,7 @@ def main():
         except Exception:
             logging.critical("Exiting: cannot get a lockfile.")
             return -1
-        with Pool(processes=2) as pool:
-            par_args = []
-            for ds in conf.get("datasets"):
-                par_args.append((ds, incremental_name, retain_snaps))
-            # TODO
-            results = pool.starmap(do_parallel_send, par_args, chunksize=1)
+        results = parallel_process_backup(parallel_sends, conf.get("datasets"), incremental_name, retain_snaps)
 
     elif not args.config:
         # config file not provided
@@ -133,6 +130,14 @@ def main():
             return -10
     return 0
 
+def parallel_process_backup(parallel_sends: int, datasets: list, incremental_name: str, retain_snaps):
+    with Pool(processes=parallel_sends) as pool:
+        args = []
+        for ds in datasets:
+            args.append((ds, incremental_name, retain_snaps))
+        results = pool.starmap(do_parallel_send, args, chunksize=1)
+        return results
+
 
 def do_parallel_send(dataset: dict, incremental_name: str, retain_snaps: int):
     # sleep randomly before we get started
@@ -145,12 +150,12 @@ def do_parallel_send(dataset: dict, incremental_name: str, retain_snaps: int):
         logging.error(
             f"Unable to get list of existing snaps for dataset {name}. IT WAS NOT BACKED UP!"
         )
-        return True
+        return e
     if stragglers:
         logging.error(
-            f"Dataset: {name} has straggler snapshots. Remove zfsbackup-yyyymmdd-hhmm snaps for this dataset."
+            f"Dataset: {name} has straggler snapshots. IT WAS NOT BACKED UP! Remove zfsbackup-yyyymmdd-hhmm snaps for this dataset."
         )
-        return True
+        return ZFSBackupError("dataset has stragglers.")
     try:
         backup_dataset(name, dataset.get("destinations"), incremental_name)
         # Delete old snaps
@@ -159,7 +164,7 @@ def do_parallel_send(dataset: dict, incremental_name: str, retain_snaps: int):
         logging.error(
             f"Dataset backup of {name} to {str(dataset.get('destinations'))} FAILED! YOU'LL WANT TO SEE TO THAT!"
         )
-        return True
+        return e
     return False
 
 
@@ -224,11 +229,11 @@ def backup_dataset(dataset, destinations, inc_snap):
                     __run_ssh_command(username, hostname, port, ["zfs", "--version"])
                 except CalledProcessError as e:
                     raise ZFSBackupError(
-                        f"Error: Test connection to {transport} failed. Aborting."
+                        f"Test connection to {transport} failed. Aborting."
                     )
                 except TimeoutExpired as e:
                     raise ZFSBackupError(
-                        f"Error: Test connection to {transport} timed out. Aborting."
+                        f"Test connection to {transport} timed out. Aborting."
                     )
         new_snap = create_timestamp_snap(dataset)
         if has_backuplast(dataset, inc_snap):
@@ -317,7 +322,7 @@ def backup_dataset(dataset, destinations, inc_snap):
             )
             raise e
     except ZFSBackupError as e:
-        logging.error("Failed backup of " + dataset + " to " + str(destinations))
+        logging.error(f"Failed backup of {dataset} to {str(destinations)}")
         raise e
 
 
@@ -331,7 +336,7 @@ def verify_backup(snapshot, destination, transport):
     try:
         if get_transport_type(transport) == "local":
             zfs_command = [
-                "zfs",
+                shutil.which("zfs"),
                 "list",
                 "-H",
                 "-t",
@@ -352,9 +357,9 @@ def verify_backup(snapshot, destination, transport):
         elif get_transport_type(transport) == "ssh":
             # TODO: make the ssh communication it's own function probably
             username, hostname, port = parse_ssh_transport(transport)
-            zfs = "zfs list -H -t snapshot -o name " + destination + snapshot
+            zfs = f"zfs list -H -t snapshot -o name {destination}{snapshot}"
             ssh_command = [
-                "ssh",
+                shutil.which("ssh"),
                 "-o",
                 "PreferredAuthentications=publickey",
                 "-o",
@@ -397,7 +402,7 @@ def create_snapshot(dataset, name):
     """
     try:
         zfs = subprocess.run(
-            ["zfs", "snap", dataset + "@" + name],
+            [shutil.which("zfs"), "snap", f"{dataset}@{name}"],
             timeout=600,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
@@ -443,7 +448,7 @@ def delete_snapshot(snapshot):
         )
     try:
         zfs = subprocess.run(
-            ["zfs", "destroy", snapshot],
+            [shutil.which("zfs"), "destroy", snapshot],
             timeout=600,
             stderr=subprocess.PIPE,
             check=True,
@@ -467,7 +472,7 @@ def rename_dataset(dataset, newname):
     """
     try:
         zfs = subprocess.run(
-            ["zfs", "rename", dataset, newname],
+            [shutil.which("zfs"), "rename", dataset, newname],
             stderr=subprocess.PIPE,
             check=True,
             timeout=600,
@@ -475,7 +480,7 @@ def rename_dataset(dataset, newname):
         )
     except CalledProcessError as e:
         # command returned non-zero error code
-        logging.error(f"Error: Unable to rename dataset {dataset} to {newname}")
+        logging.error(f"Unable to rename dataset {dataset} to {newname}")
         logging.error(f"Got: {str(__cleanup_stdout(e.stderr))}")
         raise ZFSBackupError(f"Failed to rename dataset: {dataset} newname: {newname}")
     except TimeoutExpired:
@@ -521,7 +526,9 @@ def send_snapshot(snapshot, destination, transport="local", incremental_source=N
         send_flags = ""
 
     if "@" not in snapshot:
-        raise ZFSBackupError(f"Error: tried to send non snapshot {snapshot}")
+        raise ZFSBackupError(f"tried to send non snapshot {snapshot}")
+
+    zsend_command = [shutil.which("zfs"), "send"]
 
     if incremental_source:
         if "@" not in incremental_source:
@@ -529,32 +536,33 @@ def send_snapshot(snapshot, destination, transport="local", incremental_source=N
                 f"Incremental source is not a snapshot. snap: {snapshot} dest {destination} incremental_source {incremental_source}"
             )
         if not send_flags:
-            zsend_command = ["zfs", "send", "-i", incremental_source, snapshot]
+            zsend_command.extend(["-i", incremental_source, snapshot])
         else:
-            zsend_command = [
-                "zfs",
-                "send",
-                send_flags,
-                "-i",
-                incremental_source,
-                snapshot,
-            ]
+            zsend_command.extend(
+                [
+                    send_flags,
+                    "-i",
+                    incremental_source,
+                    snapshot,
+                ]
+            )
     else:
         if not send_flags:
-            zsend_command = ["zfs", "send", snapshot]
+            zsend_command.extend([snapshot])
         else:
-            zsend_command = ["zfs", "send", send_flags, snapshot]
+            zsend_command.extend([send_flags, snapshot])
 
-    zrecv_command = ["zfs", "recv", recv_flags, destination]
+    zrecv_command = [shutil.which("zfs"), "recv", recv_flags, destination]
     logging.info(f"Beginning send of {snapshot} to {destination}")
     if get_transport_type(transport) == "local":
-        with run(
-            "zfs send", zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        with subprocess.Popen(
+            zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         ) as zfs_send:
-            with run(
-                "zfs recv", zrecv_command, stdin=zfs_send.stdout, stderr=subprocess.PIPE
+            with subprocess.Popen(
+                zrecv_command, stdin=zfs_send.stdout, stderr=subprocess.PIPE
             ) as zfs_recv:
                 try:
+                    zfs_recv.communicate()
                     zfs_recv.wait()
                     if zfs_recv.returncode != 0:
                         zfs_send.kill()
@@ -579,18 +587,13 @@ def send_snapshot(snapshot, destination, transport="local", incremental_source=N
 
     elif get_transport_type(transport) == "ssh":
         username, hostname, port = parse_ssh_transport(transport)
-        with run(
-            "zfs send", zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        with subprocess.Popen(
+            zsend_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         ) as zfs_send:
             # TODO: have a configurable for ssh-key instead of just assuming
-            ssh_remote_command = (
-                "mbuffer -m 1G 2> /dev/null | lz4 -d | zfs recv "
-                + recv_flags
-                + " "
-                + destination
-            )
+            ssh_remote_command = f"mbuffer -m 1G 2> /dev/null | lz4 -d | zfs recv {recv_flags} {destination}"
             ssh_command = [
-                "ssh",
+                shutil.which("ssh"),
                 "-o",
                 "PreferredAuthentications=publickey",
                 "-o",
@@ -604,22 +607,19 @@ def send_snapshot(snapshot, destination, transport="local", incremental_source=N
                 hostname,
                 ssh_remote_command,
             ]
-            with run(
-                "mbuffer pipe",
-                ["mbuffer", "-m", "1G"],
+            with subprocess.Popen(
+                [shutil.which("mbuffer"), "-m", "1G"],
                 stdin=zfs_send.stdout,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             ) as mbuffer:
-                with run(
-                    "lz4 pipe",
-                    ["lz4"],
+                with subprocess.Popen(
+                    [shutil.which("lz4")],
                     stdin=mbuffer.stdout,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 ) as lz4:
-                    with run(
-                        "ssh recv",
+                    with subprocess.Popen(
                         ssh_command,
                         stdin=lz4.stdout,
                         stderr=subprocess.PIPE,
@@ -727,7 +727,7 @@ def get_snapshots(dataset):
     # get list of snapshots
     try:
         zfs_command = [
-            "zfs",
+            shutil.which("zfs"),
             "list",
             "-H",
             "-t",
@@ -770,7 +770,15 @@ def is_encrypted_dataset(dataset):
     throws ZFSBackupError if it can't figure it out
     """
     try:
-        zfs_command = ["zfs", "get", "-H", "-d", "0", "encryption", dataset]
+        zfs_command = [
+            shutil.which("zfs"),
+            "get",
+            "-H",
+            "-d",
+            "0",
+            "encryption",
+            dataset,
+        ]
         results = __run_command(zfs_command)[0].split("\t")
         return (
             results[0] == dataset and results[1] == "encryption" and results[2] != "off"
@@ -864,6 +872,7 @@ def clean_dest_snaps(destinations, global_retain_snaps=None):
             errors = 0
             logging.info(f"Deleting {str(len(snaps))} from {dataset} via {transport}.")
             for snap in snaps:
+                # this will be executed on the remote host, assume the shell will be able to work with the unqualified path
                 zfs_snap_delete = ["zfs", "destroy", snap]
                 try:
                     __run_ssh_command(user, host, port, zfs_snap_delete)
@@ -914,7 +923,7 @@ def __run_ssh_command(user, host, port, cmd):
     returns: the stdout of the command
     """
     ssh_inv = [
-        "ssh",
+        shutil.which("ssh"),
         "-o",
         "PreferredAuthentications=publickey",
         "-o",
@@ -1020,28 +1029,6 @@ class ZFSBackupError(Exception):
         self.message = message
 
         logging.error(message)
-
-
-class run(subprocess.Popen):
-    def __init__(self, *args, **kwargs):
-        self.log_tag = args[0]
-        subprocess.Popen.__init__(self, *args[1:], **kwargs)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, value, traceback):
-        if isinstance(value, ZFSBackupError):
-            logging.error(f"error in {self.log_tag}")
-
-        if self.stdout:
-            self.stdout.close()
-
-        if self.stderr:
-            self.stderr.close()
-
-        self.kill()
-        self.wait()
 
 
 if sys.version_info[0] != 3 or sys.version_info[1] < 6:
