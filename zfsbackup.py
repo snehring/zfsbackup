@@ -670,7 +670,6 @@ def send_snapshot(snapshot, destination, transport="local", incremental_source=N
                         stderr=subprocess.PIPE,
                     ) as ssh_recv:
                         try:
-                            ssh_recv.communicate()
                             ssh_recv.wait()
                             if ssh_recv.returncode != 0:
                                 lz4.kill()
@@ -680,7 +679,7 @@ def send_snapshot(snapshot, destination, transport="local", incremental_source=N
                                 zfs_send.kill()
                                 zfs_send.wait()
                                 raise ZFSBackupError(
-                                    f"ssh send of {snapshot} to {destination} failed. ssh recv pipe errors: {ssh_recv.stderr.read}"
+                                    f"ssh send of {snapshot} to {destination} failed. ssh recv pipe errors: {__cleanup_stdout(ssh_recv.stderr.read().decode('UTF-8'))}"
                                 )
                             lz4.wait()
                             if lz4.returncode != 0:
@@ -689,9 +688,8 @@ def send_snapshot(snapshot, destination, transport="local", incremental_source=N
                                 zfs_send.kill()
                                 zfs_send.wait()
                                 raise ZFSBackupError(
-                                    f"ssh send of {snapshot} to {destination} failed. lz4 errors: {lz4.stderr.read}"
+                                    f"ssh send of {snapshot} to {destination} failed. lz4 errors: {__cleanup_stdout(lz4.stderr.read().decode('UTF-8'))}"
                                 )
-
                             mbuffer.wait()
                             if mbuffer.returncode != 0:
                                 zfs_send.kill()
@@ -699,11 +697,10 @@ def send_snapshot(snapshot, destination, transport="local", incremental_source=N
                                 raise ZFSBackupError(
                                     f"ssh send of {snapshot} to {destination} failed. mbuffer error."
                                 )
-
                             zfs_send.wait()
                             if zfs_send.returncode != 0:
                                 raise ZFSBackupError(
-                                    f"ssh send of {snapshot} to {destination} failed. zfs send errors: {zfs_send.stderr.read}"
+                                    f"ssh send of {snapshot} to {destination} failed. zfs send errors: {__cleanup_stdout(zfs_send.stderr.read().decode('UTF-8'))}"
                                 )
 
                         except (CalledProcessError, OSError) as e:
