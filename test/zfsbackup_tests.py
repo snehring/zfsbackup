@@ -29,10 +29,10 @@ class TestZFSBackup(unittest.TestCase):
     dest_dataset = "destination"
 
     def setUp(self):
-        subprocess.run(['./test-setup.sh'],timeout=30)
+        subprocess.run([os.path.join(os.path.dirname(__file__), './test-setup.sh')],timeout=30)
 
     def tearDown(self):
-        subprocess.run(['./test-teardown.sh'],timeout=30)
+        subprocess.run([os.path.join(os.path.dirname(__file__), './test-teardown.sh')],timeout=30)
 
     def testLockfileCreation(self):
         fd = zfsbackup.create_lockfile("./testing")
@@ -389,7 +389,7 @@ class TestZFSBackup(unittest.TestCase):
 
     def testValidateConfig(self):
         # do more than this
-        c = zfsbackup.validate_config('../config_example.yml')
+        c = zfsbackup.validate_config(os.path.join(os.path.dirname(__file__),'../config_example.yml'))
         self.assertTrue('log_file' in c)
         self.assertTrue('lock_file' in c)
         for ds in c.get('datasets'):

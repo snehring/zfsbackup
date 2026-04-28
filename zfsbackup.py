@@ -307,7 +307,7 @@ def backup_dataset(dataset, destinations, inc_snap):
             # delete old incremental marker
             try:
                 delete_snapshot(dataset + inc_snap)
-                logger.info("Deleted old incremental snapshot")
+                logger.info("Deleted %s.", dataset+inc_snap)
             except ZFSBackupError:
                 logger.error(
                     "Unable to delete %s. YOU WILL NEED TO DELETE IT AND THEN RENAME %s TO %s",
