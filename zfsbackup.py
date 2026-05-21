@@ -581,10 +581,10 @@ def send_snapshot(snapshot, destination, transport="local", incremental_source=N
     """
     logger = logging.getLogger(__name__)
     send_flags = ""
-    recv_flags = "-F"
+    recv_flags = "-o canmount=noauto"
     if is_encrypted_dataset(snapshot):
         send_flags = "-w"
-        recv_flags = ""
+        recv_flags = "-o canmount=noauto"
     elif get_transport_type(transport) == "ssh":
         send_flags = ""
 
